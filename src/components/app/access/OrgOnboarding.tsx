@@ -63,9 +63,13 @@ export function OrgOnboarding() {
   }
   async function finish() {
     setFinishing(true);
-    await new Promise((r) => setTimeout(r, 500));
-    completeOnboarding({ ...form, step: 5 });
-    setFinishing(false);
+    try {
+      await completeOnboarding({ ...form, step: 5 });
+    } catch {
+      // Error state is surfaced by the shared mutation layer.
+    } finally {
+      setFinishing(false);
+    }
   }
 
   return (

@@ -4,8 +4,6 @@ import { AuthShell } from "@/components/auth/AuthShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable/index";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
@@ -23,8 +21,9 @@ export const Route = createFileRoute("/login")({
 
 function LoginPage() {
   const navigate = useNavigate();
-  const { session } = useAuth();
+  const { session, signIn, signInWithGoogle, completeGoogleSignIn } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [oauthLoading, setOauthLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -32,18 +31,48 @@ function LoginPage() {
     if (session) navigate({ to: "/app" });
   }, [session, navigate]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("code");
+    if (!code || session) return;
+
+    setOauthLoading(true);
+    void completeGoogleSignIn(code)
+      .then(() => {
+        navigate({ to: "/app", replace: true });
+      })
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : "Could not complete Google sign-in.";
+        toast.error(message);
+      })
+      .finally(() => {
+        setOauthLoading(false);
+      });
+  }, [completeGoogleSignIn, navigate, session]);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-    if (error) return toast.error(error.message);
-    navigate({ to: "/app" });
+    try {
+      await signIn(email, password);
+      navigate({ to: "/app" });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not sign you in.";
+      toast.error(message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleGoogle() {
-    const res = await lovable.auth.signInWithOAuth("google", { redirect_uri: `${window.location.origin}/app` });
-    if (res.error) toast.error("Could not start Google sign-in");
+    setOauthLoading(true);
+    try {
+      await signInWithGoogle();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not start Google sign-in.";
+      toast.error(message);
+      setOauthLoading(false);
+    }
   }
 
   return (
@@ -53,8 +82,12 @@ function LoginPage() {
       footer={<>New to Kairo? <Link to="/signup" className="text-foreground font-medium hover:underline">Create an account</Link></>}
     >
       <div className="space-y-3">
-        <Button type="button" variant="outline" className="w-full h-11 rounded-xl" onClick={handleGoogle}>
-          <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24"><path fill="#EA4335" d="M12 10.2v3.9h5.5c-.2 1.4-1.6 4-5.5 4-3.3 0-6-2.7-6-6s2.7-6 6-6c1.9 0 3.1.8 3.8 1.5l2.6-2.5C16.8 3.6 14.6 2.7 12 2.7 6.9 2.7 2.7 6.9 2.7 12s4.2 9.3 9.3 9.3c5.4 0 8.9-3.8 8.9-9.1 0-.6-.1-1.1-.2-1.7H12z"/></svg>
+        <Button type="button" variant="outline" className="w-full h-11 rounded-xl" onClick={handleGoogle} disabled={loading || oauthLoading}>
+          {oauthLoading ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24"><path fill="#EA4335" d="M12 10.2v3.9h5.5c-.2 1.4-1.6 4-5.5 4-3.3 0-6-2.7-6-6s2.7-6 6-6c1.9 0 3.1.8 3.8 1.5l2.6-2.5C16.8 3.6 14.6 2.7 12 2.7 6.9 2.7 2.7 6.9 2.7 12s4.2 9.3 9.3 9.3c5.4 0 8.9-3.8 8.9-9.1 0-.6-.1-1.1-.2-1.7H12z"/></svg>
+          )}
           Continue with Google
         </Button>
         <div className="relative my-5">
@@ -76,7 +109,7 @@ function LoginPage() {
           </div>
           <Input required type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="h-11 rounded-xl" placeholder="••••••••" />
         </div>
-        <Button type="submit" disabled={loading} className="w-full h-11 rounded-xl btn-premium">
+        <Button type="submit" disabled={loading || oauthLoading} className="w-full h-11 rounded-xl btn-premium">
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sign in"}
         </Button>
       </form>

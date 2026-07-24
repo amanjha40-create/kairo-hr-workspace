@@ -4,7 +4,7 @@ import { AuthShell } from "@/components/auth/AuthShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { supabase } from "@/integrations/supabase/client";
+import { requestPasswordReset } from "@/lib/api/auth";
 import { toast } from "sonner";
 import { Loader2, MailCheck } from "lucide-react";
 
@@ -26,12 +26,15 @@ function ForgotPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/login`,
-    });
-    setLoading(false);
-    if (error) return toast.error(error.message);
-    setSent(true);
+    try {
+      await requestPasswordReset(email);
+      setSent(true);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not send reset instructions.";
+      toast.error(message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (

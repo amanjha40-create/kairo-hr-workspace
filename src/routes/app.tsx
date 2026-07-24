@@ -20,6 +20,7 @@ import { OrgOnboarding } from "@/components/app/access/OrgOnboarding";
 import {
   InvitationPendingScreen, OrgSuspendedScreen, MembershipSuspendedScreen,
   SessionExpiredScreen, VerificationPendingBanner, AccessDeniedScreen,
+  WorkspaceLoadingScreen, WorkspaceErrorScreen,
 } from "@/components/app/access/StateScreens";
 import { DevPreview } from "@/components/app/access/DevPreview";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { HelpWidget } from "@/components/app/HelpWidget";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import type { PermissionAction } from "@/lib/access-context";
 
 export const Route = createFileRoute("/app")({
   head: () => ({
@@ -45,7 +47,7 @@ export const Route = createFileRoute("/app")({
 });
 
 function AppRoot() {
-  const { state } = useAccess();
+  const { state, loading, error, retry } = useAccess();
   const navigate = useNavigate();
   const path = useRouterState({ select: (s) => s.location.pathname });
   const needsSetup = state === "no_org" || state === "setup_incomplete";
@@ -56,7 +58,22 @@ function AppRoot() {
     }
   }, [needsSetup, path, navigate]);
 
+  if (loading) return (<><WorkspaceLoadingScreen /><DevPreview /></>);
   if (state === "session_expired") return (<><SessionExpiredScreen /><DevPreview /></>);
+  if (error && state !== "access_denied") {
+    return (
+      <>
+        <WorkspaceErrorScreen
+          message={error.message}
+          onRetry={() => {
+            void retry();
+          }}
+        />
+        <DevPreview />
+      </>
+    );
+  }
+  if (state === "access_denied") return (<><AccessDeniedScreen message="You don't have access to this workspace." /><DevPreview /></>);
   if (needsSetup) return (<><OrgOnboarding /><DevPreview /></>);
   if (state === "invitation_pending") return (<><InvitationPendingScreen /><DevPreview /></>);
   if (state === "org_suspended") return (<><OrgSuspendedScreen /><DevPreview /></>);
@@ -72,6 +89,22 @@ const nav = [
   { to: "/app/team", label: "Team", icon: UsersRound, key: "t" },
   { to: "/app/settings", label: "Settings", icon: Settings, key: "s" },
 ];
+
+const routePermissionRules: Array<{
+  prefix: string;
+  action: PermissionAction;
+  message: string;
+}> = [
+  { prefix: "/app/people", action: "modify_person", message: "You don't have permission to view People in this workspace." },
+  { prefix: "/app/invitations", action: "modify_invitation", message: "You don't have permission to view Trust Invitations in this workspace." },
+  { prefix: "/app/verifications", action: "modify_verification", message: "You don't have permission to view Employment Verifications in this workspace." },
+  { prefix: "/app/team", action: "manage_team", message: "You don't have permission to view Team in this workspace." },
+  { prefix: "/app/settings", action: "save_settings", message: "You don't have permission to view Settings in this workspace." },
+];
+
+function getRoutePermission(path: string) {
+  return routePermissionRules.find((rule) => path === rule.prefix || path.startsWith(`${rule.prefix}/`)) ?? null;
+}
 
 function NavList({ path, onClick }: { path: string; onClick?: () => void }) {
   return (
@@ -91,26 +124,23 @@ function NavList({ path, onClick }: { path: string; onClick?: () => void }) {
 }
 
 function AppLayout() {
-  const { user, loading, signOut } = useAuth();
+  const { user, session, loading, signOut } = useAuth();
   const navigate = useNavigate();
   const path = useRouterState({ select: (s) => s.location.pathname });
-  const { search, setSearch, setInviteOpen, setEmptyMode } = useDashboard();
+  const { search, setSearch, setInviteOpen } = useDashboard();
   const { role, org, can, state: accessState } = useAccess();
   const searchRef = useRef<HTMLInputElement>(null);
   const gPressed = useRef(false);
+  const routePermission = getRoutePermission(path);
+  const permissionDenied = routePermission ? !can(routePermission.action) : false;
 
   useEffect(() => {
     if (loading) return;
-    if (!user) { navigate({ to: "/login" }); return; }
+    if (!session) { navigate({ to: "/login" }); return; }
     // NOTE: /onboarding is the candidate Trust Passport flow. The Trust
     // Workspace uses /app/setup for organization onboarding, which AppRoot
     // gates via access state. Do NOT redirect workspace users to /onboarding.
-  }, [user, loading, navigate]);
-
-  // A newly-created organization starts with empty workspace data.
-  useEffect(() => {
-    if (org?.verification === "pending") setEmptyMode(true);
-  }, [org, setEmptyMode]);
+  }, [session, loading, navigate]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -129,11 +159,11 @@ function AppLayout() {
     return () => window.removeEventListener("keydown", onKey);
   }, [navigate, setInviteOpen]);
 
-  if (loading || !user) {
+  if (loading || !session) {
     return <div className="min-h-screen flex items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>;
   }
 
-  const fullName = (user.user_metadata?.full_name as string | undefined) ?? user.email ?? "User";
+  const fullName = (user?.user_metadata?.full_name as string | undefined) ?? user?.email ?? "Workspace User";
   const initials = fullName.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 
   return (
@@ -210,14 +240,14 @@ function AppLayout() {
             <DropdownMenuContent align="end" className="w-56 rounded-xl">
               <DropdownMenuLabel>
                 <div className="text-sm font-semibold">{fullName}</div>
-                <div className="text-[11px] text-muted-foreground font-normal">{user.email}</div>
+                <div className="text-[11px] text-muted-foreground font-normal">{user?.email ?? "No email available"}</div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild><Link to="/app/profile"><User className="h-4 w-4 mr-2" /> My profile</Link></DropdownMenuItem>
               <DropdownMenuItem asChild><Link to="/app/profile"><CircleUser className="h-4 w-4 mr-2" /> My account</Link></DropdownMenuItem>
               <DropdownMenuItem asChild><Link to="/app/settings"><Settings className="h-4 w-4 mr-2" /> Settings</Link></DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => signOut().then(() => navigate({ to: "/" }))}>
+              <DropdownMenuItem onClick={() => signOut().then(() => navigate({ to: "/login" }))}>
                 <LogOut className="h-4 w-4 mr-2" /> Sign out
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -231,7 +261,9 @@ function AppLayout() {
         </div>
         <main className="flex-1 p-4 md:p-8 max-w-[1500px] w-full mx-auto">
           {accessState === "access_denied" ? (
-            <AccessDeniedScreen />
+            <AccessDeniedScreen message="You don't have access to this workspace." />
+          ) : permissionDenied ? (
+            <AccessDeniedScreen message={routePermission?.message} />
           ) : (
             <AnimatePresence mode="wait">
               <motion.div key={path} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>

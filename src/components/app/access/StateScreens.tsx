@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { useAccess } from "@/lib/access-context";
 import { useAuth } from "@/lib/auth-context";
 import { useNavigate } from "@tanstack/react-router";
-import { Mail, ShieldAlert, Clock, ShieldOff, LockKeyhole, TimerReset, UserX } from "lucide-react";
+import { Mail, ShieldAlert, Clock, ShieldOff, LockKeyhole, TimerReset, UserX, Loader2, RefreshCcw, AlertTriangle } from "lucide-react";
 
 function Frame({ children }: { children: React.ReactNode }) {
   return (
@@ -43,8 +43,44 @@ export function InvitationPendingScreen() {
         <Row label="Invited by" value={pendingInvitation.invitedBy} />
       </div>
       <div className="mt-6 flex items-center gap-2 justify-center">
-        <Button variant="outline" onClick={declineInvitation} className="rounded-xl">Decline</Button>
-        <Button onClick={acceptInvitation} className="btn-premium rounded-xl">Accept invitation</Button>
+        <Button variant="outline" onClick={() => void declineInvitation()} className="rounded-xl">Decline</Button>
+        <Button onClick={() => void acceptInvitation()} className="btn-premium rounded-xl">Accept invitation</Button>
+      </div>
+    </Frame>
+  );
+}
+
+export function WorkspaceLoadingScreen() {
+  return (
+    <Frame>
+      <Icon><Loader2 className="h-6 w-6 animate-spin" /></Icon>
+      <h1 className="text-2xl font-semibold tracking-tight">Loading workspace</h1>
+      <p className="mt-2 text-sm text-muted-foreground">
+        We’re loading your organization access and workspace state.
+      </p>
+    </Frame>
+  );
+}
+
+export function WorkspaceErrorScreen({
+  message,
+  onRetry,
+}: {
+  message?: string;
+  onRetry: () => void;
+}) {
+  return (
+    <Frame>
+      <Icon><AlertTriangle className="h-6 w-6" /></Icon>
+      <h1 className="text-2xl font-semibold tracking-tight">This workspace didn’t load</h1>
+      <p className="mt-2 text-sm text-muted-foreground">
+        {message ?? "Something went wrong while loading your organization workspace. Try again."}
+      </p>
+      <div className="mt-6">
+        <Button onClick={onRetry} className="btn-premium rounded-xl">
+          <RefreshCcw className="h-4 w-4 mr-2" />
+          Retry
+        </Button>
       </div>
     </Frame>
   );

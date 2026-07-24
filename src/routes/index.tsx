@@ -9,12 +9,12 @@ export const Route = createFileRoute("/")({
 
 function IndexPage() {
   const navigate = useNavigate();
-  const { user, loading } = useAuth();
+  const { session, loading } = useAuth();
 
   useEffect(() => {
     if (loading) return;
-    navigate({ to: user ? "/app" : "/login", replace: true });
-  }, [loading, navigate, user]);
+    navigate({ to: session ? "/app" : "/login", replace: true });
+  }, [loading, navigate, session]);
 
   return (
     <div className="min-h-screen flex items-center justify-center">
