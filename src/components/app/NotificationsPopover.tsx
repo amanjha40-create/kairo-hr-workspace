@@ -1,104 +1,113 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import {
-  Bell, MailOpen, Mail, CheckCheck, ShieldCheck, ShieldAlert, ShieldQuestion,
-  MailPlus, MailX, Clock, UserRoundCheck, Users, Building2, Inbox, AlertTriangle,
-  CircleUser, MoreHorizontal, ExternalLink,
+  AlertTriangle,
+  Bell,
+  CheckCheck,
+  Clock,
+  ExternalLink,
+  MailOpen,
+  MoreHorizontal,
+  RefreshCw,
+  ShieldAlert,
+  ShieldCheck,
+  ShieldQuestion,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useDashboard } from "@/lib/dashboard-context";
-import type { Notification, NotificationCategory } from "@/lib/dashboard-data";
+import {
+  getNotificationErrorMessage,
+  getNotificationKindLabel,
+  getNotificationTargetHref,
+  type WorkspaceNotification,
+} from "@/lib/notifications";
+import {
+  useMarkAllNotificationsReadMutation,
+  useMarkNotificationReadMutation,
+  useNotificationUnreadCountQuery,
+  useNotificationsQuery,
+} from "@/lib/queries/notifications";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 
-const ICONS: Record<NotificationCategory, React.ComponentType<{ className?: string }>> = {
-  invitation_opened: MailOpen,
-  invitation_accepted: UserRoundCheck,
-  invitation_expiring: Clock,
-  invitation_delivery_failed: MailX,
-  candidate_info_submitted: CircleUser,
-  candidate_response: Mail,
-  verification_received: Inbox,
-  clarification_received: ShieldQuestion,
-  verification_completed: ShieldCheck,
-  unable_to_verify: ShieldAlert,
-  team_member_invited: Users,
-  team_invitation_accepted: Users,
-  org_action_required: Building2,
-  update: Bell,
-  reminder: Clock,
-  completed: ShieldCheck,
-  flagged: AlertTriangle,
-};
+const EMPTY_NOTIFICATIONS: WorkspaceNotification[] = [];
 
-const CATEGORY_LABEL: Record<NotificationCategory, string> = {
-  invitation_opened: "Invitation opened",
-  invitation_accepted: "Invitation accepted",
-  invitation_expiring: "Invitation expiring",
-  invitation_delivery_failed: "Delivery failed",
-  candidate_info_submitted: "Information submitted",
-  candidate_response: "Candidate response",
-  verification_received: "Verification received",
-  clarification_received: "Clarification received",
-  verification_completed: "Verification completed",
-  unable_to_verify: "Unable to verify",
-  team_member_invited: "Team member invited",
-  team_invitation_accepted: "Team invitation accepted",
-  org_action_required: "Organization action required",
-  update: "Update",
-  reminder: "Reminder",
-  completed: "Completed",
-  flagged: "Flagged",
-};
+function getNotificationIcon(notification: WorkspaceNotification) {
+  if (notification.kind === "trust_invitation_created") return MailOpen;
+  if (notification.kind === "verification_completed") return ShieldCheck;
+  if (notification.kind === "password_reset_requested") return ShieldAlert;
 
-export const NOTIF_CATEGORY_LABEL = CATEGORY_LABEL;
-export const NOTIF_ICONS = ICONS;
+  if (notification.category === "verification") return ShieldQuestion;
+  if (notification.category === "security") return ShieldAlert;
+  if (notification.category === "system") return Clock;
 
-export function targetHref(n: Notification): { to: string; params?: Record<string, string> } | null {
-  if (n.available === false) return null;
-  const t = n.target;
-  switch (t.kind) {
-    case "person":
-      return t.id ? { to: "/app/people/$id", params: { id: t.id } } : { to: "/app/people" };
-    case "invitation":
-      return t.id ? { to: "/app/invitations/$id", params: { id: t.id } } : { to: "/app/invitations" };
-    case "verification":
-      return t.id ? { to: "/app/verifications/$id", params: { id: t.id } } : { to: "/app/verifications" };
-    case "team":
-      return { to: "/app/team" };
-    case "settings":
-      return { to: "/app/settings" };
-    default:
-      return null;
-  }
+  return Bell;
 }
 
 export function NotificationsPopover() {
-  const { notifications, unread, markAllRead, markRead, markUnread } = useDashboard();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"all" | "unread">("all");
+  const notificationsQuery = useNotificationsQuery();
+  const unreadCountQuery = useNotificationUnreadCountQuery();
+  const markReadMutation = useMarkNotificationReadMutation();
+  const markAllReadMutation = useMarkAllNotificationsReadMutation();
+
+  const notifications = notificationsQuery.data ?? EMPTY_NOTIFICATIONS;
+  const derivedUnreadCount = useMemo(
+    () => notifications.filter((notification) => !notification.read).length,
+    [notifications],
+  );
+  const unread = unreadCountQuery.data ?? derivedUnreadCount;
 
   const list = useMemo(() => {
-    const arr = [...notifications].sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+    const arr = [...notifications].sort((a, b) =>
+      (b.createdAt || "").localeCompare(a.createdAt || ""),
+    );
     return tab === "unread" ? arr.filter((n) => !n.read) : arr;
   }, [notifications, tab]);
 
   const visible = list.slice(0, 8);
+  const loadError =
+    notificationsQuery.error ?? (!notifications.length ? unreadCountQuery.error : null);
 
-  function onOpen(n: Notification) {
-    const href = targetHref(n);
+  async function markAsRead(notification: WorkspaceNotification) {
+    if (notification.read) return;
+    try {
+      await markReadMutation.mutateAsync(notification.id);
+    } catch (error) {
+      toast.error(
+        getNotificationErrorMessage(error, "We couldn't mark this notification as read."),
+      );
+    }
+  }
+
+  async function onMarkAllRead() {
+    try {
+      await markAllReadMutation.mutateAsync();
+    } catch (error) {
+      toast.error(
+        getNotificationErrorMessage(error, "We couldn't mark your notifications as read."),
+      );
+    }
+  }
+
+  function onOpen(notification: WorkspaceNotification) {
+    const href = getNotificationTargetHref(notification);
+    if (!notification.read) {
+      void markAsRead(notification);
+    }
     if (!href) {
-      toast.error("This record is no longer available.");
-      if (!n.read) markRead(n.id);
+      toast.error("This notification doesn't have a linked workspace record.");
       return;
     }
-    if (!n.read) markRead(n.id);
     setOpen(false);
     navigate(href as never);
   }
@@ -106,7 +115,12 @@ export function NotificationsPopover() {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative rounded-xl" aria-label="Notifications">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="relative rounded-xl"
+          aria-label="Notifications"
+        >
           <Bell className="h-4 w-4" />
           {unread > 0 && (
             <span className="absolute top-1.5 right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-destructive text-[10px] font-semibold text-destructive-foreground flex items-center justify-center">
@@ -115,15 +129,18 @@ export function NotificationsPopover() {
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-[380px] sm:w-[420px] p-0 rounded-2xl overflow-hidden">
+      <PopoverContent
+        align="end"
+        className="w-[380px] sm:w-[420px] p-0 rounded-2xl overflow-hidden"
+      >
         <div className="p-4 border-b border-border/60 flex items-center justify-between gap-3">
           <div>
             <div className="text-sm font-semibold">Notifications</div>
             <div className="text-xs text-muted-foreground">{unread} unread</div>
           </div>
           <button
-            onClick={markAllRead}
-            disabled={unread === 0}
+            onClick={() => void onMarkAllRead()}
+            disabled={unread === 0 || markAllReadMutation.isPending}
             className="text-xs font-medium hover:underline disabled:opacity-40 disabled:no-underline inline-flex items-center gap-1"
           >
             <CheckCheck className="h-3.5 w-3.5" /> Mark all read
@@ -137,18 +154,37 @@ export function NotificationsPopover() {
               onClick={() => setTab(t)}
               className={cn(
                 "text-xs font-medium px-3 py-1.5 rounded-lg transition-colors capitalize",
-                tab === t ? "bg-foreground text-background" : "text-muted-foreground hover:bg-foreground/[0.05]",
+                tab === t
+                  ? "bg-foreground text-background"
+                  : "text-muted-foreground hover:bg-foreground/[0.05]",
               )}
             >
               {t}
-              {t === "unread" && unread > 0 && <span className="ml-1 tabular-nums">({unread})</span>}
+              {t === "unread" && unread > 0 && (
+                <span className="ml-1 tabular-nums">({unread})</span>
+              )}
             </button>
           ))}
           <div className="ml-auto pb-2" />
         </div>
 
         <div className="max-h-[400px] overflow-y-auto">
-          {visible.length === 0 ? (
+          {notificationsQuery.isPending && !notificationsQuery.data ? (
+            <LoadingState />
+          ) : loadError ? (
+            <PopoverErrorState
+              title={
+                loadError instanceof Error && "status" in loadError && loadError.status === 403
+                  ? "Permission denied"
+                  : "Notifications didn't load"
+              }
+              description={getNotificationErrorMessage(loadError, "Please try again.")}
+              onRetry={() => {
+                void notificationsQuery.refetch();
+                void unreadCountQuery.refetch();
+              }}
+            />
+          ) : visible.length === 0 ? (
             <EmptyState tab={tab} />
           ) : (
             <AnimatePresence initial={false}>
@@ -157,7 +193,7 @@ export function NotificationsPopover() {
                   key={n.id}
                   n={n}
                   onOpen={() => onOpen(n)}
-                  onToggleRead={() => (n.read ? markUnread(n.id) : markRead(n.id))}
+                  onMarkRead={() => void markAsRead(n)}
                 />
               ))}
             </AnimatePresence>
@@ -178,6 +214,20 @@ export function NotificationsPopover() {
   );
 }
 
+function LoadingState() {
+  return (
+    <div className="px-6 py-12 text-center">
+      <div className="mx-auto h-10 w-10 rounded-full bg-foreground/[0.05] flex items-center justify-center mb-3">
+        <Bell className="h-4 w-4 text-muted-foreground animate-pulse" />
+      </div>
+      <div className="text-sm font-medium">Loading notifications</div>
+      <div className="text-xs text-muted-foreground mt-1">
+        We’re fetching the latest activity for this workspace.
+      </div>
+    </div>
+  );
+}
+
 function EmptyState({ tab }: { tab: "all" | "unread" }) {
   return (
     <div className="px-6 py-12 text-center">
@@ -188,8 +238,33 @@ function EmptyState({ tab }: { tab: "all" | "unread" }) {
         {tab === "unread" ? "No unread notifications" : "You’re all caught up"}
       </div>
       <div className="text-xs text-muted-foreground mt-1">
-        {tab === "unread" ? "New activity will appear here." : "We’ll let you know when something happens."}
+        {tab === "unread"
+          ? "New activity will appear here."
+          : "We’ll let you know when something happens."}
       </div>
+    </div>
+  );
+}
+
+function PopoverErrorState({
+  title,
+  description,
+  onRetry,
+}: {
+  title: string;
+  description: string;
+  onRetry: () => void;
+}) {
+  return (
+    <div className="px-6 py-12 text-center">
+      <div className="mx-auto h-10 w-10 rounded-full bg-destructive/10 flex items-center justify-center mb-3">
+        <AlertTriangle className="h-4 w-4 text-destructive" />
+      </div>
+      <div className="text-sm font-medium">{title}</div>
+      <div className="text-xs text-muted-foreground mt-1 max-w-[260px] mx-auto">{description}</div>
+      <Button variant="outline" size="sm" className="mt-4 rounded-lg" onClick={onRetry}>
+        <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Retry
+      </Button>
     </div>
   );
 }
@@ -197,15 +272,15 @@ function EmptyState({ tab }: { tab: "all" | "unread" }) {
 export function NotificationRow({
   n,
   onOpen,
-  onToggleRead,
+  onMarkRead,
   dense = true,
 }: {
-  n: Notification;
+  n: WorkspaceNotification;
   onOpen: () => void;
-  onToggleRead: () => void;
+  onMarkRead?: () => void;
   dense?: boolean;
 }) {
-  const Icon = ICONS[n.kind] ?? Bell;
+  const Icon = getNotificationIcon(n);
   const unavailable = n.available === false;
   return (
     <motion.div
@@ -225,10 +300,14 @@ export function NotificationRow({
         )}
       >
         <div className="mt-0.5 relative shrink-0">
-          <div className={cn(
-            "h-8 w-8 rounded-lg flex items-center justify-center",
-            unavailable ? "bg-muted text-muted-foreground" : "bg-foreground/[0.06] text-foreground",
-          )}>
+          <div
+            className={cn(
+              "h-8 w-8 rounded-lg flex items-center justify-center",
+              unavailable
+                ? "bg-muted text-muted-foreground"
+                : "bg-foreground/[0.06] text-foreground",
+            )}
+          >
             <Icon className="h-4 w-4" />
           </div>
           {!n.read && (
@@ -243,7 +322,7 @@ export function NotificationRow({
           <div className="text-xs text-muted-foreground mt-1 line-clamp-2">{n.body}</div>
           <div className="flex items-center gap-2 mt-1.5">
             <span className="text-[10px] uppercase tracking-wider text-muted-foreground/80 font-medium">
-              {CATEGORY_LABEL[n.kind]}
+              {getNotificationKindLabel(n.kind, n.category)}
             </span>
             {n.target.label && !unavailable && (
               <span className="text-[10px] text-muted-foreground">· {n.target.label}</span>
@@ -259,13 +338,17 @@ export function NotificationRow({
       <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="h-6 w-6 rounded-md hover:bg-foreground/10 flex items-center justify-center" aria-label="Options">
+            <button
+              className="h-6 w-6 rounded-md hover:bg-foreground/10 flex items-center justify-center"
+              aria-label="Options"
+            >
               <MoreHorizontal className="h-3.5 w-3.5" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="rounded-xl">
-            <DropdownMenuItem onClick={onToggleRead}>
-              {n.read ? (<><Mail className="h-3.5 w-3.5 mr-2" /> Mark as unread</>) : (<><MailOpen className="h-3.5 w-3.5 mr-2" /> Mark as read</>)}
+            <DropdownMenuItem disabled={n.read || !onMarkRead} onClick={onMarkRead}>
+              <MailOpen className="h-3.5 w-3.5 mr-2" />
+              {n.read ? "Already read" : "Mark as read"}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -273,5 +356,3 @@ export function NotificationRow({
     </motion.div>
   );
 }
-
-export { MailPlus }; // silence unused

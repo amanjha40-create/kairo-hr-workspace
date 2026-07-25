@@ -3,18 +3,15 @@ import {
   seedEmployees,
   seedRequests,
   seedActivity,
-  seedNotifications,
   Employee,
   VerificationRequest,
   ActivityItem,
-  Notification,
   VerificationStatus,
 } from "./dashboard-data";
 import {
   workspacePeople as seedPeople,
   buildAttentionItems,
   WorkspacePerson,
-  InternalNote,
   AttentionItem,
 } from "./workspace-data";
 import {
@@ -31,7 +28,6 @@ interface Ctx {
   requests: VerificationRequest[];
   enrichments: Record<string, RequestEnrichment>;
   activity: ActivityItem[];
-  notifications: Notification[];
   attention: AttentionItem[];
   search: string;
   setSearch: (s: string) => void;
@@ -49,10 +45,6 @@ interface Ctx {
       Partial<Employee>,
   ) => void;
   updateRequestStatus: (id: string, status: VerificationStatus) => void;
-  markAllRead: () => void;
-  markRead: (id: string) => void;
-  markUnread: (id: string) => void;
-  unread: number;
   addNote: (personId: string, body: string) => void;
   editNote: (personId: string, noteId: string, body: string) => void;
   deleteNote: (personId: string, noteId: string) => void;
@@ -87,7 +79,6 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   const [enrichments, setEnrichments] =
     useState<Record<string, RequestEnrichment>>(seedEnrichments);
   const [activity, setActivity] = useState<ActivityItem[]>(seedActivity);
-  const [notifications, setNotifications] = useState<Notification[]>(seedNotifications);
 
   const [search, setSearch] = useState("");
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -140,19 +131,6 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     setPeople((prev) => [person, ...prev]);
     setActivity((prev) => [
       { id: `a-${Date.now()}`, kind: "invited", actor: "You", subject: e.name, at: "Just now" },
-      ...prev,
-    ]);
-    setNotifications((prev) => [
-      {
-        id: `n-${Date.now()}`,
-        kind: "invitation_opened",
-        title: "Trust invitation sent",
-        body: `${e.name} was invited to share their Trust Passport.`,
-        at: "Just now",
-        createdAt: new Date().toISOString(),
-        read: false,
-        target: { kind: "person", id: (e as { id?: string }).id, label: e.name },
-      },
       ...prev,
     ]);
   }, []);
@@ -341,39 +319,10 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           clarifications: [],
         },
       }));
-      setNotifications((prev) => [
-        {
-          id: `n-${Date.now()}`,
-          kind: "candidate_info_submitted",
-          title: "Verification created",
-          body: `${payload.type} verification created for ${name}.`,
-          at: "Just now",
-          createdAt: now,
-          read: false,
-          target: { kind: "verification", id: req.id, label: req.id },
-        },
-        ...prev,
-      ]);
       return req;
     },
     [people],
   );
-
-  const markAllRead = useCallback(
-    () => setNotifications((prev) => prev.map((n) => ({ ...n, read: true }))),
-    [],
-  );
-  const markRead = useCallback(
-    (id: string) =>
-      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n))),
-    [],
-  );
-  const markUnread = useCallback(
-    (id: string) =>
-      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: false } : n))),
-    [],
-  );
-  const unread = notifications.filter((n) => !n.read).length;
 
   const attention = useMemo(
     () => (emptyMode ? [] : buildAttentionItems(people)),
@@ -387,7 +336,6 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       requests: emptyMode ? [] : requests,
       enrichments,
       activity: emptyMode ? [] : activity,
-      notifications,
       attention,
       search,
       setSearch,
@@ -399,10 +347,6 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       setEmptyMode,
       addEmployee,
       updateRequestStatus,
-      markAllRead,
-      markRead,
-      markUnread,
-      unread,
       addNote,
       editNote,
       deleteNote,
@@ -416,7 +360,6 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       requests,
       enrichments,
       activity,
-      notifications,
       attention,
       search,
       inviteOpen,
@@ -424,8 +367,6 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       emptyMode,
       addEmployee,
       updateRequestStatus,
-      markAllRead,
-      unread,
       addNote,
       editNote,
       deleteNote,

@@ -1,16 +1,30 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { PageHeader, SectionCard } from "@/components/app/primitives";
-import { useDashboard } from "@/lib/dashboard-context";
-import type { Notification, NotificationCategory } from "@/lib/dashboard-data";
-import { NotificationRow, NOTIF_CATEGORY_LABEL, targetHref } from "@/components/app/NotificationsPopover";
+import { EmptyState, PageHeader, SectionCard, TableSkeleton } from "@/components/app/primitives";
+import { NotificationRow } from "@/components/app/NotificationsPopover";
 import { Button } from "@/components/ui/button";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
-import { Bell, CheckCheck } from "lucide-react";
+import { AlertTriangle, Bell, CheckCheck } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import {
+  getNotificationErrorMessage,
+  getNotificationKindLabel,
+  getNotificationTargetHref,
+  type WorkspaceNotification,
+} from "@/lib/notifications";
+import {
+  useMarkAllNotificationsReadMutation,
+  useMarkNotificationReadMutation,
+  useNotificationUnreadCountQuery,
+  useNotificationsQuery,
+} from "@/lib/queries/notifications";
 
 export const Route = createFileRoute("/app/notifications")({
   head: () => ({ meta: [{ title: "Notifications · Kairo Trust Workspace" }] }),
@@ -20,6 +34,7 @@ export const Route = createFileRoute("/app/notifications")({
 type Tab = "all" | "unread";
 
 const DAY = 86400000;
+const EMPTY_NOTIFICATIONS: WorkspaceNotification[] = [];
 
 function bucketOf(iso: string): string {
   const t = new Date(iso).getTime();
@@ -34,26 +49,37 @@ function bucketOf(iso: string): string {
 }
 
 function NotificationsPage() {
-  const { notifications, unread, markAllRead, markRead, markUnread } = useDashboard();
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>("all");
-  const [category, setCategory] = useState<NotificationCategory | "all">("all");
+  const [category, setCategory] = useState<string>("all");
+  const notificationsQuery = useNotificationsQuery();
+  const unreadCountQuery = useNotificationUnreadCountQuery();
+  const markReadMutation = useMarkNotificationReadMutation();
+  const markAllReadMutation = useMarkAllNotificationsReadMutation();
+  const notifications = notificationsQuery.data ?? EMPTY_NOTIFICATIONS;
+  const derivedUnreadCount = useMemo(
+    () => notifications.filter((notification) => !notification.read).length,
+    [notifications],
+  );
+  const unread = unreadCountQuery.data ?? derivedUnreadCount;
 
   const categories = useMemo(() => {
-    const set = new Set<NotificationCategory>();
+    const set = new Set<string>();
     notifications.forEach((n) => set.add(n.kind));
     return Array.from(set);
   }, [notifications]);
 
   const filtered = useMemo(() => {
-    let arr = [...notifications].sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+    let arr = [...notifications].sort((a, b) =>
+      (b.createdAt || "").localeCompare(a.createdAt || ""),
+    );
     if (tab === "unread") arr = arr.filter((n) => !n.read);
     if (category !== "all") arr = arr.filter((n) => n.kind === category);
     return arr;
   }, [notifications, tab, category]);
 
   const grouped = useMemo(() => {
-    const map = new Map<string, Notification[]>();
+    const map = new Map<string, WorkspaceNotification[]>();
     filtered.forEach((n) => {
       const b = bucketOf(n.createdAt);
       if (!map.has(b)) map.set(b, []);
@@ -63,15 +89,61 @@ function NotificationsPage() {
     return order.filter((k) => map.has(k)).map((k) => ({ bucket: k, items: map.get(k)! }));
   }, [filtered]);
 
-  function onOpen(n: Notification) {
-    const href = targetHref(n);
+  const loadError =
+    notificationsQuery.error ?? (!notifications.length ? unreadCountQuery.error : null);
+
+  async function markAsRead(notification: WorkspaceNotification) {
+    if (notification.read) return;
+    try {
+      await markReadMutation.mutateAsync(notification.id);
+    } catch (error) {
+      toast.error(
+        getNotificationErrorMessage(error, "We couldn't mark this notification as read."),
+      );
+    }
+  }
+
+  async function onMarkAllRead() {
+    try {
+      await markAllReadMutation.mutateAsync();
+    } catch (error) {
+      toast.error(
+        getNotificationErrorMessage(error, "We couldn't mark your notifications as read."),
+      );
+    }
+  }
+
+  function onOpen(n: WorkspaceNotification) {
+    const href = getNotificationTargetHref(n);
+    if (!n.read) {
+      void markAsRead(n);
+    }
     if (!href) {
-      toast.error("This record is no longer available.");
-      if (!n.read) markRead(n.id);
+      toast.error("This notification doesn't have a linked workspace record.");
       return;
     }
-    if (!n.read) markRead(n.id);
     navigate(href as never);
+  }
+
+  if (loadError) {
+    return (
+      <EmptyState
+        icon={AlertTriangle}
+        title={
+          loadError instanceof Error && "status" in loadError && loadError.status === 403
+            ? "Permission denied"
+            : "Notifications didn't load"
+        }
+        description={getNotificationErrorMessage(loadError, "Please try again.")}
+        action={{
+          label: "Retry",
+          onClick: () => {
+            void notificationsQuery.refetch();
+            void unreadCountQuery.refetch();
+          },
+        }}
+      />
+    );
   }
 
   return (
@@ -94,19 +166,23 @@ function NotificationsPage() {
               )}
             >
               {t}
-              {t === "unread" && unread > 0 && <span className="ml-1 tabular-nums">({unread})</span>}
+              {t === "unread" && unread > 0 && (
+                <span className="ml-1 tabular-nums">({unread})</span>
+              )}
             </button>
           ))}
         </div>
 
-        <Select value={category} onValueChange={(v) => setCategory(v as NotificationCategory | "all")}>
+        <Select value={category} onValueChange={setCategory}>
           <SelectTrigger className="rounded-xl h-9 w-full sm:w-[240px]">
             <SelectValue placeholder="All types" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All types</SelectItem>
             {categories.map((c) => (
-              <SelectItem key={c} value={c}>{NOTIF_CATEGORY_LABEL[c]}</SelectItem>
+              <SelectItem key={c} value={c}>
+                {getNotificationKindLabel(c)}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -116,15 +192,19 @@ function NotificationsPage() {
             variant="outline"
             size="sm"
             className="rounded-lg h-9"
-            disabled={unread === 0}
-            onClick={markAllRead}
+            disabled={unread === 0 || markAllReadMutation.isPending}
+            onClick={() => void onMarkAllRead()}
           >
             <CheckCheck className="h-3.5 w-3.5 mr-1.5" /> Mark all as read
           </Button>
         </div>
       </div>
 
-      {filtered.length === 0 ? (
+      {notificationsQuery.isPending && !notificationsQuery.data ? (
+        <SectionCard title="Notifications" description="Latest workspace activity">
+          <TableSkeleton rows={5} />
+        </SectionCard>
+      ) : filtered.length === 0 ? (
         <div className="rounded-2xl border border-border/60 bg-background shadow-[var(--shadow-soft)]">
           <div className="px-6 py-16 text-center">
             <div className="mx-auto h-12 w-12 rounded-full bg-foreground/[0.05] flex items-center justify-center mb-4">
@@ -140,7 +220,6 @@ function NotificationsPage() {
             </p>
           </div>
         </div>
-
       ) : (
         <div className="space-y-6">
           {grouped.map((g) => (
@@ -152,7 +231,7 @@ function NotificationsPage() {
                     n={n}
                     dense={false}
                     onOpen={() => onOpen(n)}
-                    onToggleRead={() => (n.read ? markUnread(n.id) : markRead(n.id))}
+                    onMarkRead={() => void markAsRead(n)}
                   />
                 ))}
               </div>

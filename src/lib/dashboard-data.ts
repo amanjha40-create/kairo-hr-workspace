@@ -48,48 +48,24 @@ export interface ActivityItem {
   at: string;
 }
 
-export type NotificationCategory =
-  | "invitation_opened"
-  | "invitation_accepted"
-  | "invitation_expiring"
-  | "invitation_delivery_failed"
-  | "candidate_info_submitted"
-  | "candidate_response"
-  | "verification_received"
-  | "clarification_received"
-  | "verification_completed"
-  | "unable_to_verify"
-  | "team_member_invited"
-  | "team_invitation_accepted"
-  | "org_action_required"
-  | "update"
-  | "reminder"
-  | "completed"
-  | "flagged";
-
-export type NotificationTargetKind =
-  | "person"
-  | "invitation"
-  | "verification"
-  | "team"
-  | "settings"
-  | "none";
-
-export interface Notification {
-  id: string;
-  title: string;
-  body: string;
-  at: string;
-  createdAt: string;
-  read: boolean;
-  kind: NotificationCategory;
-  target: { kind: NotificationTargetKind; id?: string; label?: string };
-  available?: boolean;
-}
-
-const DEPTS = ["Engineering", "Design", "Product", "Sales", "Operations", "Marketing", "Finance", "People"];
+const DEPTS = [
+  "Engineering",
+  "Design",
+  "Product",
+  "Sales",
+  "Operations",
+  "Marketing",
+  "Finance",
+  "People",
+];
 const ROLES: Record<string, string[]> = {
-  Engineering: ["Software Engineer", "Senior Engineer", "Staff Engineer", "Data Engineer", "Engineering Manager"],
+  Engineering: [
+    "Software Engineer",
+    "Senior Engineer",
+    "Staff Engineer",
+    "Data Engineer",
+    "Engineering Manager",
+  ],
   Design: ["Product Designer", "Design Lead", "Brand Designer"],
   Product: ["Product Manager", "Senior PM", "Product Analyst"],
   Sales: ["Account Executive", "SDR", "Sales Manager"],
@@ -100,17 +76,61 @@ const ROLES: Record<string, string[]> = {
 };
 
 const NAMES = [
-  "Priya Raman", "Arjun Mehta", "Sara Khan", "Karthik Venugopal", "Neha Sharma", "Rohan Kapoor",
-  "Ananya Iyer", "Vikram Singh", "Meera Patel", "Rahul Verma", "Divya Nair", "Aditya Rao",
-  "Kavya Menon", "Siddharth Joshi", "Isha Bansal", "Manav Gupta", "Tara D'Souza", "Nikhil Reddy",
-  "Zoya Ahmed", "Yash Malhotra", "Aarav Chatterjee", "Riya Bhatt", "Devansh Shah", "Simran Kaur",
+  "Priya Raman",
+  "Arjun Mehta",
+  "Sara Khan",
+  "Karthik Venugopal",
+  "Neha Sharma",
+  "Rohan Kapoor",
+  "Ananya Iyer",
+  "Vikram Singh",
+  "Meera Patel",
+  "Rahul Verma",
+  "Divya Nair",
+  "Aditya Rao",
+  "Kavya Menon",
+  "Siddharth Joshi",
+  "Isha Bansal",
+  "Manav Gupta",
+  "Tara D'Souza",
+  "Nikhil Reddy",
+  "Zoya Ahmed",
+  "Yash Malhotra",
+  "Aarav Chatterjee",
+  "Riya Bhatt",
+  "Devansh Shah",
+  "Simran Kaur",
 ];
 
-function seededPick<T>(arr: T[], seed: number) { return arr[seed % arr.length]; }
-function initials(name: string) { return name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase(); }
+function seededPick<T>(arr: T[], seed: number) {
+  return arr[seed % arr.length];
+}
+function initials(name: string) {
+  return name
+    .split(" ")
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+}
 
-const statusRoll: VerificationStatus[] = ["Verified", "Verified", "Verified", "Pending", "Under Review", "Documents Requested", "Rejected"];
-const empStatusRoll: EmployeeStatus[] = ["Active", "Active", "Active", "Active", "Invited", "Inactive"];
+const statusRoll: VerificationStatus[] = [
+  "Verified",
+  "Verified",
+  "Verified",
+  "Pending",
+  "Under Review",
+  "Documents Requested",
+  "Rejected",
+];
+const empStatusRoll: EmployeeStatus[] = [
+  "Active",
+  "Active",
+  "Active",
+  "Active",
+  "Invited",
+  "Inactive",
+];
 
 export const seedEmployees: Employee[] = NAMES.map((name, i) => {
   const dept = seededPick(DEPTS, i);
@@ -122,7 +142,10 @@ export const seedEmployees: Employee[] = NAMES.map((name, i) => {
   return {
     id: `EMP-${(1024 + i).toString()}`,
     name,
-    email: `${name.toLowerCase().replace(/[^a-z]/g, ".").replace(/\.+/g, ".")}@acme.co`,
+    email: `${name
+      .toLowerCase()
+      .replace(/[^a-z]/g, ".")
+      .replace(/\.+/g, ".")}@acme.co`,
     phone: `+91 9${(800000000 + i * 12345).toString().slice(0, 9)}`,
     department: dept,
     role,
@@ -130,7 +153,12 @@ export const seedEmployees: Employee[] = NAMES.map((name, i) => {
     employmentType: (["Full-time", "Full-time", "Full-time", "Contract", "Intern"] as const)[i % 5],
     employmentStatus: eStatus,
     verificationStatus: vStatus,
-    trustScore: vStatus === "Verified" ? 88 + ((i * 7) % 12) : vStatus === "Rejected" ? 42 + ((i * 3) % 15) : 60 + ((i * 5) % 20),
+    trustScore:
+      vStatus === "Verified"
+        ? 88 + ((i * 7) % 12)
+        : vStatus === "Rejected"
+          ? 42 + ((i * 3) % 15)
+          : 60 + ((i * 5) % 20),
     joinedAt: new Date(Date.now() - daysAgo * 86400000).toISOString(),
     updatedAt: new Date(Date.now() - updDays * 86400000).toISOString(),
     initials: initials(name),
@@ -152,15 +180,51 @@ export const seedRequests: VerificationRequest[] = seedEmployees.slice(0, 15).ma
     status,
     documents: [
       { name: "Offer Letter.pdf", kind: "Offer letter", uploaded: true },
-      { name: "Relieving Letter.pdf", kind: "Relieving letter", uploaded: status !== "Documents Requested" },
+      {
+        name: "Relieving Letter.pdf",
+        kind: "Relieving letter",
+        uploaded: status !== "Documents Requested",
+      },
       { name: "Payslip Mar.pdf", kind: "Payslip", uploaded: status === "Verified" },
     ],
     timeline: [
-      { at: new Date(Date.now() - daysAgo * 86400000).toISOString(), label: "Request created", actor: "HR" },
-      { at: new Date(Date.now() - daysAgo * 86400000 + 3600000).toISOString(), label: "Employee notified", actor: "System" },
-      ...(status !== "Pending" ? [{ at: new Date(Date.now() - (daysAgo - 1) * 86400000).toISOString(), label: "Documents received", actor: "Employee" }] : []),
-      ...(status === "Verified" ? [{ at: new Date(Date.now() - Math.max(1, daysAgo - 2) * 86400000).toISOString(), label: "Verification approved", actor: "Kairo AI" }] : []),
-      ...(status === "Rejected" ? [{ at: new Date(Date.now() - Math.max(1, daysAgo - 2) * 86400000).toISOString(), label: "Rejected — tenure mismatch", actor: "Reviewer" }] : []),
+      {
+        at: new Date(Date.now() - daysAgo * 86400000).toISOString(),
+        label: "Request created",
+        actor: "HR",
+      },
+      {
+        at: new Date(Date.now() - daysAgo * 86400000 + 3600000).toISOString(),
+        label: "Employee notified",
+        actor: "System",
+      },
+      ...(status !== "Pending"
+        ? [
+            {
+              at: new Date(Date.now() - (daysAgo - 1) * 86400000).toISOString(),
+              label: "Documents received",
+              actor: "Employee",
+            },
+          ]
+        : []),
+      ...(status === "Verified"
+        ? [
+            {
+              at: new Date(Date.now() - Math.max(1, daysAgo - 2) * 86400000).toISOString(),
+              label: "Verification approved",
+              actor: "Kairo AI",
+            },
+          ]
+        : []),
+      ...(status === "Rejected"
+        ? [
+            {
+              at: new Date(Date.now() - Math.max(1, daysAgo - 2) * 86400000).toISOString(),
+              label: "Rejected — tenure mismatch",
+              actor: "Reviewer",
+            },
+          ]
+        : []),
     ],
     employmentHistory: [
       { company: "Acme", role: e.role, from: e.joinedAt.slice(0, 7), to: "Present" },
@@ -172,37 +236,34 @@ export const seedRequests: VerificationRequest[] = seedEmployees.slice(0, 15).ma
 export const seedActivity: ActivityItem[] = [
   { id: "a1", kind: "verified", actor: "Kairo AI", subject: "Priya Raman", at: "2m ago" },
   { id: "a2", kind: "invited", actor: "Riya Kapoor", subject: "3 employees", at: "14m ago" },
-  { id: "a3", kind: "completed", actor: "System", subject: "Arjun Mehta — Employment", at: "1h ago" },
-  { id: "a4", kind: "documents", actor: "Aman Joshi", subject: "requested payslip from Sara Khan", at: "3h ago" },
-  { id: "a5", kind: "shared", actor: "Neel Shah", subject: "verification report with Northwind", at: "Yesterday" },
-  { id: "a6", kind: "rejected", actor: "Reviewer", subject: "Karthik V. — tenure mismatch", at: "Yesterday" },
-];
-
-const _now = Date.now();
-const _iso = (mins: number) => new Date(_now - mins * 60000).toISOString();
-const _rel = (mins: number) => {
-  if (mins < 1) return "Just now";
-  if (mins < 60) return `${mins}m ago`;
-  if (mins < 60 * 24) return `${Math.floor(mins / 60)}h ago`;
-  if (mins < 60 * 24 * 2) return "Yesterday";
-  return `${Math.floor(mins / (60 * 24))}d ago`;
-};
-
-export const seedNotifications: Notification[] = [
-  { id: "n1", kind: "invitation_accepted", title: "Trust invitation accepted", body: "Priya Raman accepted your Trust invitation.", at: _rel(4), createdAt: _iso(4), read: false, target: { kind: "invitation", id: "INV-2041", label: "INV-2041" } },
-  { id: "n2", kind: "candidate_info_submitted", title: "Candidate submitted information", body: "Arjun Mehta shared employment details on their Trust Passport.", at: _rel(22), createdAt: _iso(22), read: false, target: { kind: "invitation", id: "INV-2039", label: "INV-2039" } },
-  { id: "n3", kind: "verification_received", title: "New employment verification received", body: "Northwind Labs requested verification for Sara Khan.", at: _rel(55), createdAt: _iso(55), read: false, target: { kind: "verification", id: "IVR-3001", label: "Northwind Labs" } },
-  { id: "n4", kind: "clarification_received", title: "Clarification received", body: "Karthik Venugopal replied to your clarification request.", at: _rel(90), createdAt: _iso(90), read: false, target: { kind: "verification", id: "IVR-3002", label: "IVR-3002" } },
-  { id: "n5", kind: "invitation_expiring", title: "Trust invitation expiring soon", body: "Invitation to Neha Sharma expires in 2 days.", at: _rel(180), createdAt: _iso(180), read: false, target: { kind: "invitation", id: "INV-2035", label: "INV-2035" } },
-  { id: "n6", kind: "invitation_delivery_failed", title: "Trust invitation could not be delivered", body: "Delivery to rohan@company.example bounced.", at: _rel(240), createdAt: _iso(240), read: true, target: { kind: "invitation", id: "INV-2033", label: "INV-2033" } },
-  { id: "n7", kind: "invitation_opened", title: "Trust invitation opened", body: "Ananya Iyer opened your Trust invitation.", at: _rel(300), createdAt: _iso(300), read: true, target: { kind: "invitation", id: "INV-2031", label: "INV-2031" } },
-  { id: "n8", kind: "verification_completed", title: "Employment verification completed", body: "You confirmed employment for Vikram Singh.", at: _rel(60 * 8), createdAt: _iso(60 * 8), read: true, target: { kind: "verification", id: "IVR-2998", label: "IVR-2998" } },
-  { id: "n9", kind: "unable_to_verify", title: "Marked unable to verify", body: "You marked Meera Patel’s employment as unable to verify.", at: _rel(60 * 20), createdAt: _iso(60 * 20), read: true, target: { kind: "verification", id: "IVR-2994", label: "IVR-2994" } },
-  { id: "n10", kind: "candidate_response", title: "Candidate response received", body: "Rahul Verma responded on their Trust Passport.", at: _rel(60 * 26), createdAt: _iso(60 * 26), read: true, target: { kind: "person", id: "EMP-1032", label: "Rahul Verma" } },
-  { id: "n11", kind: "team_member_invited", title: "Team member invited", body: "You invited isha@acme.co as Reviewer.", at: _rel(60 * 30), createdAt: _iso(60 * 30), read: true, target: { kind: "team", label: "Team" } },
-  { id: "n12", kind: "team_invitation_accepted", title: "Team invitation accepted", body: "Neel Shah joined your workspace as Reviewer.", at: _rel(60 * 48), createdAt: _iso(60 * 48), read: true, target: { kind: "team", label: "Team" } },
-  { id: "n13", kind: "org_action_required", title: "Organization action required", body: "Add your work email domain to verify your organization.", at: _rel(60 * 72), createdAt: _iso(60 * 72), read: false, target: { kind: "settings", label: "Settings" } },
-  { id: "n14", kind: "invitation_accepted", title: "Trust invitation accepted", body: "A candidate accepted an invitation that is no longer available.", at: _rel(60 * 96), createdAt: _iso(60 * 96), read: true, target: { kind: "invitation", id: "INV-ARCHIVED", label: "Archived" }, available: false },
+  {
+    id: "a3",
+    kind: "completed",
+    actor: "System",
+    subject: "Arjun Mehta — Employment",
+    at: "1h ago",
+  },
+  {
+    id: "a4",
+    kind: "documents",
+    actor: "Aman Joshi",
+    subject: "requested payslip from Sara Khan",
+    at: "3h ago",
+  },
+  {
+    id: "a5",
+    kind: "shared",
+    actor: "Neel Shah",
+    subject: "verification report with Northwind",
+    at: "Yesterday",
+  },
+  {
+    id: "a6",
+    kind: "rejected",
+    actor: "Reviewer",
+    subject: "Karthik V. — tenure mismatch",
+    at: "Yesterday",
+  },
 ];
 
 // Reports data
@@ -217,10 +278,15 @@ export const monthlyStats = [
   { m: "Aug", verified: 142, rejected: 3, pending: 11 },
 ];
 
-export const deptStats = DEPTS.slice(0, 6).map((d, i) => ({ name: d, value: 24 + i * 9 + (i % 3) * 4 }));
+export const deptStats = DEPTS.slice(0, 6).map((d, i) => ({
+  name: d,
+  value: 24 + i * 9 + (i % 3) * 4,
+}));
 
 export const heatmap: number[][] = Array.from({ length: 5 }, (_, w) =>
-  Array.from({ length: 7 }, (_, d) => Math.max(0, Math.round(Math.sin(w * 0.9 + d * 0.6) * 5 + 6 + (d === 5 || d === 6 ? -3 : 0)))),
+  Array.from({ length: 7 }, (_, d) =>
+    Math.max(0, Math.round(Math.sin(w * 0.9 + d * 0.6) * 5 + 6 + (d === 5 || d === 6 ? -3 : 0))),
+  ),
 );
 
 export const savedFilters = [
