@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { fallback, zodValidator } from "@tanstack/zod-adapter";
 import { z } from "zod";
 import { useMemo } from "react";
-import { PageHeader, SectionCard, EmptyState } from "@/components/app/primitives";
+import { EmptyState, PageHeader, SectionCard, TableSkeleton } from "@/components/app/primitives";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -18,38 +18,49 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useDashboard, useFilteredPeople } from "@/lib/dashboard-context";
+import { useDashboard } from "@/lib/dashboard-context";
 import { useAccess } from "@/lib/access-context";
 import { PermissionDenied } from "@/components/app/access/PermissionDenied";
 import {
-  RelationshipPill,
   InvitationPill,
-  VerificationPill,
   PassportPill,
+  RelationshipPill,
+  VerificationPill,
 } from "@/components/app/workspace-pills";
 import type {
-  Relationship,
   InvitationStatus,
-  WorkspaceVerificationStatus,
+  Relationship,
   SharedPassportStatus,
+  WorkspaceVerificationStatus,
 } from "@/lib/workspace-data";
 import {
-  Users,
+  canOpenSharedPassport,
+  getCreatedAfterFilter,
+  getOrganizationPeopleErrorMessage,
+  mapInvitationFilterToBackend,
+  mapPassportFilterToBackend,
+  mapRelationshipFilterToBackend,
+  mapVerificationFilterToBackend,
+} from "@/lib/organization-people";
+import { useOrganizationPeopleDirectoryQuery } from "@/lib/queries/organization-people";
+import {
+  AlertTriangle,
+  Bell,
+  FileSearch,
+  MoreHorizontal,
   Plus,
   Search,
-  Bell,
-  MoreHorizontal,
   ShieldCheck,
-  FileSearch,
-  X,
   UserSearch,
+  Users,
+  X,
 } from "lucide-react";
-import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 
 const RELATIONSHIPS: readonly (Relationship | "all")[] = [
   "all",
   "Candidate",
+  "Future Employee",
   "Employee",
   "Former Employee",
   "Contractor",
@@ -57,6 +68,7 @@ const RELATIONSHIPS: readonly (Relationship | "all")[] = [
 const INV_OPTIONS: readonly (InvitationStatus | "all")[] = [
   "all",
   "Not Invited",
+  "Draft",
   "Sent",
   "Opened",
   "Accepted",
@@ -81,6 +93,7 @@ const SP_OPTIONS: readonly (SharedPassportStatus | "all")[] = [
   "Expired",
   "Access Revoked",
 ];
+
 const DATE_OPTIONS = ["all", "7d", "30d", "90d"] as const;
 
 const peopleSearch = z.object({
@@ -90,7 +103,6 @@ const peopleSearch = z.object({
   passport: fallback(z.string(), "all").default("all"),
   addedBy: fallback(z.string(), "all").default("all"),
   from: fallback(z.string(), "all").default("all"),
-  q: fallback(z.string(), "").default(""),
 });
 
 export const Route = createFileRoute("/app/people/")({
@@ -99,33 +111,42 @@ export const Route = createFileRoute("/app/people/")({
 });
 
 function PeoplePage() {
-  const people = useFilteredPeople();
-  const { people: allPeople, setInviteOpen, search: globalSearch, setSearch } = useDashboard();
-  const { can } = useAccess();
+  const { setInviteOpen, search: globalSearch, setSearch } = useDashboard();
+  const { can, org } = useAccess();
   const canInvite = can("invite_candidate");
+  const canModify = can("modify_person");
   const s = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
+
+  const allPeopleQuery = useOrganizationPeopleDirectoryQuery(org?.publicId, {
+    sort_by: "last_activity_at",
+    sort_order: "desc",
+  });
+
+  const directoryQuery = useOrganizationPeopleDirectoryQuery(org?.publicId, {
+    search: globalSearch.trim() || undefined,
+    relationship: mapRelationshipFilterToBackend(s.relationship),
+    invitation_status: mapInvitationFilterToBackend(s.invitation),
+    verification_status: mapVerificationFilterToBackend(s.verification),
+    passport_status: mapPassportFilterToBackend(s.passport),
+    added_by: s.addedBy !== "all" ? s.addedBy : undefined,
+    created_after: getCreatedAfterFilter(s.from),
+    sort_by: "last_activity_at",
+    sort_order: "desc",
+  });
 
   function update(patch: Partial<typeof s>) {
     navigate({ search: (prev) => ({ ...prev, ...patch }) });
   }
 
-  const rows = useMemo(() => {
-    const now = Date.now();
-    const cutoffDays = s.from === "7d" ? 7 : s.from === "30d" ? 30 : s.from === "90d" ? 90 : null;
-    return people.filter((p) => {
-      if (s.relationship !== "all" && p.relationship !== s.relationship) return false;
-      if (s.invitation !== "all" && p.invitationStatus !== s.invitation) return false;
-      if (s.verification !== "all" && p.workspaceVerificationStatus !== s.verification)
-        return false;
-      if (s.passport !== "all" && p.sharedPassport !== s.passport) return false;
-      if (s.addedBy !== "all" && p.addedBy !== s.addedBy) return false;
-      if (cutoffDays && new Date(p.addedAt).getTime() < now - cutoffDays * 86400e3) return false;
-      return true;
-    });
-  }, [people, s]);
-
-  const addedByOptions = Array.from(new Set(allPeople.map((p) => p.addedBy))).sort();
+  const rows = directoryQuery.data?.items ?? [];
+  const addedByOptions = useMemo(
+    () =>
+      Array.from(
+        new Set((allPeopleQuery.data?.items ?? []).map((person) => person.addedBy)),
+      ).sort(),
+    [allPeopleQuery.data?.items],
+  );
   const activeFilterCount =
     (s.relationship !== "all" ? 1 : 0) +
     (s.invitation !== "all" ? 1 : 0) +
@@ -134,7 +155,8 @@ function PeoplePage() {
     (s.addedBy !== "all" ? 1 : 0) +
     (s.from !== "all" ? 1 : 0);
 
-  const clearAll = () =>
+  const clearAll = () => {
+    setSearch("");
     navigate({
       search: () => ({
         relationship: "all",
@@ -143,14 +165,54 @@ function PeoplePage() {
         passport: "all",
         addedBy: "all",
         from: "all",
-        q: "",
       }),
     });
+  };
 
-  const isFirstUse = allPeople.length === 0;
+  const totalPeople = allPeopleQuery.data?.summary.totalPeople ?? 0;
+  const isFirstUse = !allPeopleQuery.isPending && !allPeopleQuery.error && totalPeople === 0;
   const noSearchResults = !isFirstUse && globalSearch.trim() !== "" && rows.length === 0;
   const noFilterResults =
     !isFirstUse && !noSearchResults && activeFilterCount > 0 && rows.length === 0;
+
+  if (!org) {
+    return (
+      <EmptyState
+        icon={Users}
+        title="No active organization"
+        description="People become available after your workspace organization is ready."
+      />
+    );
+  }
+
+  if (!canModify) {
+    return (
+      <EmptyState
+        icon={Users}
+        title="Permission denied"
+        description="You don't have permission to view People in this workspace."
+      />
+    );
+  }
+
+  const loadError = directoryQuery.error ?? allPeopleQuery.error;
+  if (loadError) {
+    const status = "status" in loadError ? loadError.status : undefined;
+    return (
+      <EmptyState
+        icon={AlertTriangle}
+        title={status === 403 ? "Permission denied" : "People didn't load"}
+        description={getOrganizationPeopleErrorMessage(loadError, "Please try again.")}
+        action={{
+          label: "Retry",
+          onClick: () => {
+            void directoryQuery.refetch();
+            void allPeopleQuery.refetch();
+          },
+        }}
+      />
+    );
+  }
 
   return (
     <div>
@@ -177,13 +239,12 @@ function PeoplePage() {
         />
       ) : null}
 
-      {/* Search + filters */}
       <div className="grid gap-3 mb-4">
         <div className="relative">
           <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={globalSearch}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(event) => setSearch(event.target.value)}
             placeholder="Search by name, email or reference"
             className="pl-9 h-10 rounded-xl"
             aria-label="Search people"
@@ -194,63 +255,71 @@ function PeoplePage() {
             label="Relationship"
             value={s.relationship}
             options={RELATIONSHIPS}
-            onChange={(v) => update({ relationship: v })}
+            onChange={(value) => update({ relationship: value })}
           />
           <FilterSelect
             label="Invitation"
             value={s.invitation}
             options={INV_OPTIONS}
-            onChange={(v) => update({ invitation: v })}
+            onChange={(value) => update({ invitation: value })}
           />
           <FilterSelect
             label="Verification"
             value={s.verification}
             options={WVS_OPTIONS}
-            onChange={(v) => update({ verification: v })}
+            onChange={(value) => update({ verification: value })}
           />
           <FilterSelect
             label="Passport"
             value={s.passport}
             options={SP_OPTIONS}
-            onChange={(v) => update({ passport: v })}
+            onChange={(value) => update({ passport: value })}
           />
-          <Select value={s.addedBy} onValueChange={(v) => update({ addedBy: v })}>
+          <Select value={s.addedBy} onValueChange={(value) => update({ addedBy: value })}>
             <SelectTrigger className="w-[180px] h-9 rounded-xl text-sm">
               <SelectValue placeholder="Added by" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Added by · all</SelectItem>
-              {addedByOptions.map((a) => (
-                <SelectItem key={a} value={a}>
-                  {a}
+              {addedByOptions.map((addedBy) => (
+                <SelectItem key={addedBy} value={addedBy}>
+                  {addedBy}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <Select value={s.from} onValueChange={(v) => update({ from: v })}>
+          <Select value={s.from} onValueChange={(value) => update({ from: value })}>
             <SelectTrigger className="w-[160px] h-9 rounded-xl text-sm">
               <SelectValue placeholder="Date added" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Date added · any</SelectItem>
-              <SelectItem value="7d">Last 7 days</SelectItem>
-              <SelectItem value="30d">Last 30 days</SelectItem>
-              <SelectItem value="90d">Last 90 days</SelectItem>
+              {DATE_OPTIONS.filter((value) => value !== "all").map((value) => (
+                <SelectItem key={value} value={value}>
+                  {value === "7d"
+                    ? "Last 7 days"
+                    : value === "30d"
+                      ? "Last 30 days"
+                      : "Last 90 days"}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
-          {activeFilterCount > 0 && (
+          {activeFilterCount > 0 || globalSearch.trim() !== "" ? (
             <Button variant="ghost" size="sm" className="rounded-xl h-9" onClick={clearAll}>
-              <X className="h-3.5 w-3.5 mr-1" /> Clear all filters ({activeFilterCount})
+              <X className="h-3.5 w-3.5 mr-1" /> Clear all filters
             </Button>
-          )}
+          ) : null}
           <div className="ml-auto text-xs text-muted-foreground">
-            {rows.length} of {allPeople.length}
+            {rows.length} of {totalPeople}
           </div>
         </div>
       </div>
 
       <SectionCard title="Directory" description={`${rows.length} people matching current filters`}>
-        {isFirstUse ? (
+        {directoryQuery.isPending && !directoryQuery.data ? (
+          <TableSkeleton rows={6} />
+        ) : isFirstUse ? (
           <EmptyState
             icon={UserSearch}
             title="No people yet"
@@ -276,7 +345,6 @@ function PeoplePage() {
           />
         ) : (
           <>
-            {/* Desktop table */}
             <div className="hidden lg:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="text-[11px] uppercase tracking-wider text-muted-foreground">
@@ -293,50 +361,50 @@ function PeoplePage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
-                  {rows.map((p) => (
-                    <tr key={p.id} className="hover:bg-foreground/[0.02] group">
+                  {rows.map((person) => (
+                    <tr key={person.publicId} className="hover:bg-foreground/[0.02] group">
                       <td className="py-3 px-4">
                         <Link
                           to="/app/people/$id"
-                          params={{ id: p.id }}
+                          params={{ id: person.publicId }}
                           className="flex items-center gap-3 min-w-0"
                         >
                           <div className="h-9 w-9 shrink-0 rounded-full bg-foreground/[0.06] flex items-center justify-center text-[11px] font-medium">
-                            {p.initials}
+                            {person.initials}
                           </div>
                           <div className="min-w-0">
-                            <div className="text-sm font-medium truncate">{p.name}</div>
+                            <div className="text-sm font-medium truncate">{person.fullName}</div>
                             <div className="text-[11px] text-muted-foreground truncate">
-                              {p.email}
+                              {person.email || "No email shared"}
                             </div>
                           </div>
                         </Link>
                       </td>
                       <td className="py-3 px-3">
-                        <RelationshipPill value={p.relationship} />
+                        <RelationshipPill value={person.relationship} />
                       </td>
                       <td className="py-3 px-3">
-                        <InvitationPill value={p.invitationStatus} />
+                        <InvitationPill value={person.invitationStatus} />
                       </td>
                       <td className="py-3 px-3">
-                        <VerificationPill value={p.workspaceVerificationStatus} />
+                        <VerificationPill value={person.verificationStatus} />
                       </td>
                       <td className="py-3 px-3">
-                        <PassportPill value={p.sharedPassport} />
+                        <PassportPill value={person.passportStatus} />
                       </td>
                       <td className="py-3 px-3 text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(p.lastActivity), { addSuffix: true })}
+                        {person.lastActivityAt
+                          ? formatDistanceToNow(new Date(person.lastActivityAt), {
+                              addSuffix: true,
+                            })
+                          : "No activity yet"}
                       </td>
-                      <td className="py-3 px-3 text-xs text-muted-foreground">{p.addedBy}</td>
+                      <td className="py-3 px-3 text-xs text-muted-foreground">{person.addedBy}</td>
                       <td className="py-3 px-3 text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(p.addedAt), { addSuffix: true })}
+                        {formatDistanceToNow(new Date(person.addedAt), { addSuffix: true })}
                       </td>
                       <td className="py-3 px-4 text-right">
-                        <RowActions
-                          personId={p.id}
-                          passport={p.sharedPassport}
-                          invitationStatus={p.invitationStatus}
-                        />
+                        <RowActions personId={person.publicId} passport={person.passportStatus} />
                       </td>
                     </tr>
                   ))}
@@ -344,56 +412,57 @@ function PeoplePage() {
               </table>
             </div>
 
-            {/* Mobile / tablet cards */}
             <div className="lg:hidden divide-y divide-border/60">
-              {rows.map((p) => (
-                <div key={p.id} className="p-4">
+              {rows.map((person) => (
+                <div key={person.publicId} className="p-4">
                   <Link
                     to="/app/people/$id"
-                    params={{ id: p.id }}
+                    params={{ id: person.publicId }}
                     className="flex items-center gap-3"
                   >
                     <div className="h-10 w-10 shrink-0 rounded-full bg-foreground/[0.06] flex items-center justify-center text-xs font-medium">
-                      {p.initials}
+                      {person.initials}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="text-sm font-medium truncate">{p.name}</div>
-                      <div className="text-[11px] text-muted-foreground truncate">{p.email}</div>
+                      <div className="text-sm font-medium truncate">{person.fullName}</div>
+                      <div className="text-[11px] text-muted-foreground truncate">
+                        {person.email || "No email shared"}
+                      </div>
                     </div>
-                    <RowActions
-                      personId={p.id}
-                      passport={p.sharedPassport}
-                      invitationStatus={p.invitationStatus}
-                    />
+                    <RowActions personId={person.publicId} passport={person.passportStatus} />
                   </Link>
                   <div className="mt-3 flex flex-wrap gap-1.5">
-                    <RelationshipPill value={p.relationship} />
-                    <InvitationPill value={p.invitationStatus} />
-                    <VerificationPill value={p.workspaceVerificationStatus} />
-                    <PassportPill value={p.sharedPassport} />
+                    <RelationshipPill value={person.relationship} />
+                    <InvitationPill value={person.invitationStatus} />
+                    <VerificationPill value={person.verificationStatus} />
+                    <PassportPill value={person.passportStatus} />
                   </div>
                   <div className="mt-2 text-[11px] text-muted-foreground">
                     Last activity{" "}
-                    {formatDistanceToNow(new Date(p.lastActivity), { addSuffix: true })} · Added by{" "}
-                    {p.addedBy}
+                    {person.lastActivityAt
+                      ? formatDistanceToNow(new Date(person.lastActivityAt), {
+                          addSuffix: true,
+                        })
+                      : "not available"}{" "}
+                    · Added by {person.addedBy}
                   </div>
                   <div className="mt-3 flex gap-2">
                     <Link
                       to="/app/people/$id"
-                      params={{ id: p.id }}
+                      params={{ id: person.publicId }}
                       className="flex-1 text-center text-xs font-medium rounded-lg border border-border/60 px-3 py-2 hover:bg-foreground/[0.04]"
                     >
                       View person
                     </Link>
-                    {(p.sharedPassport === "Active" || p.sharedPassport === "Expiring Soon") && (
+                    {canOpenSharedPassport(person.passportStatus) ? (
                       <Link
                         to="/app/people/$id"
-                        params={{ id: p.id }}
+                        params={{ id: person.publicId }}
                         className="flex-1 text-center text-xs font-medium rounded-lg border border-border/60 px-3 py-2 hover:bg-foreground/[0.04]"
                       >
                         Open Passport
                       </Link>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               ))}
@@ -414,17 +483,17 @@ function FilterSelect<T extends string>({
   label: string;
   value: T;
   options: readonly T[];
-  onChange: (v: T) => void;
+  onChange: (value: T) => void;
 }) {
   return (
-    <Select value={value} onValueChange={(v) => onChange(v as T)}>
+    <Select value={value} onValueChange={(value) => onChange(value as T)}>
       <SelectTrigger className="w-auto min-w-[160px] h-9 rounded-xl text-sm">
         <SelectValue placeholder={label} />
       </SelectTrigger>
       <SelectContent>
-        {options.map((o) => (
-          <SelectItem key={o} value={o}>
-            {o === "all" ? `${label} · all` : o}
+        {options.map((option) => (
+          <SelectItem key={option} value={option}>
+            {option === "all" ? `${label} · all` : option}
           </SelectItem>
         ))}
       </SelectContent>
@@ -432,16 +501,7 @@ function FilterSelect<T extends string>({
   );
 }
 
-function RowActions({
-  personId,
-  passport,
-}: {
-  personId: string;
-  passport: SharedPassportStatus;
-  invitationStatus: InvitationStatus;
-}) {
-  const canOpenPassport = passport === "Active" || passport === "Expiring Soon";
-
+function RowActions({ personId, passport }: { personId: string; passport: SharedPassportStatus }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -460,13 +520,12 @@ function RowActions({
             <Users className="h-4 w-4 mr-2" /> View person
           </Link>
         </DropdownMenuItem>
-        <DropdownMenuItem
-          disabled={!canOpenPassport}
-          onClick={() => canOpenPassport && toast.success("Opening Shared Trust Passport")}
-        >
-          <ShieldCheck className="h-4 w-4 mr-2" /> Open Shared Trust Passport
+        <DropdownMenuItem asChild disabled={!canOpenSharedPassport(passport)}>
+          <Link to="/app/people/$id" params={{ id: personId }}>
+            <ShieldCheck className="h-4 w-4 mr-2" /> Open Shared Trust Passport
+          </Link>
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => toast.success("Reminder sent")}>
+        <DropdownMenuItem disabled>
           <Bell className="h-4 w-4 mr-2" /> Send reminder
         </DropdownMenuItem>
       </DropdownMenuContent>

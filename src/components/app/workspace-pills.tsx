@@ -12,6 +12,7 @@ import {
   UserCircle2,
   Clock3,
   Wrench,
+  UserPlus,
   MailPlus,
   MailOpen,
   MailCheck,
@@ -31,15 +32,7 @@ import {
   FileEdit,
 } from "lucide-react";
 
-function Pill({
-  tone,
-  children,
-  icon,
-}: {
-  tone: string;
-  children: ReactNode;
-  icon?: ReactNode;
-}) {
+function Pill({ tone, children, icon }: { tone: string; children: ReactNode; icon?: ReactNode }) {
   return (
     <span
       className={cn(
@@ -55,12 +48,14 @@ function Pill({
 
 const REL_TONE: Record<Relationship, string> = {
   Candidate: "bg-info/15 text-info-foreground border-info/25",
+  "Future Employee": "bg-info/10 text-info-foreground border-info/20",
   Employee: "bg-success/15 text-success border-success/25",
   "Former Employee": "bg-foreground/[0.06] text-muted-foreground border-border/60",
   Contractor: "bg-warning/15 text-warning-foreground border-warning/25",
 };
 const REL_ICON: Record<Relationship, ReactNode> = {
   Candidate: <UserCircle2 className="h-3 w-3" />,
+  "Future Employee": <UserPlus className="h-3 w-3" />,
   Employee: <Briefcase className="h-3 w-3" />,
   "Former Employee": <Clock3 className="h-3 w-3" />,
   Contractor: <Wrench className="h-3 w-3" />,

@@ -1,7 +1,12 @@
 import type { Employee } from "./dashboard-data";
 import { seedEmployees, seedRequests } from "./dashboard-data";
 
-export type Relationship = "Candidate" | "Employee" | "Former Employee" | "Contractor";
+export type Relationship =
+  | "Candidate"
+  | "Future Employee"
+  | "Employee"
+  | "Former Employee"
+  | "Contractor";
 
 export type InvitationStatus =
   | "Not Invited"
@@ -337,7 +342,16 @@ export const workspacePeople: WorkspacePerson[] = seedEmployees.map((e, i) => {
     passportExpiresAt,
     lastActivity: e.updatedAt,
     passportSharedClaims: claims,
-    personActivity: buildActivity(e.name, i, invitationStatus, wvs, sp, invitedAt, sharedAt, req?.id),
+    personActivity: buildActivity(
+      e.name,
+      i,
+      invitationStatus,
+      wvs,
+      sp,
+      invitedAt,
+      sharedAt,
+      req?.id,
+    ),
     notes:
       i % 4 === 0
         ? [
@@ -460,12 +474,18 @@ export function buildAttentionItems(people: WorkspacePerson[]): AttentionItem[] 
     }
     if (items.length >= 10) break;
   }
-  return items
-    .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
-    .slice(0, 8);
+  return items.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()).slice(0, 8);
 }
 
 export const workspaceActivityFeed: PersonActivity[] = workspacePeople
-  .flatMap((p) => p.personActivity.map((a) => ({ ...a, id: `${p.id}-${a.id}`, personName: p.name, personId: p.id } as PersonActivity & { personName: string; personId: string })))
+  .flatMap((p) =>
+    p.personActivity.map(
+      (a) =>
+        ({ ...a, id: `${p.id}-${a.id}`, personName: p.name, personId: p.id }) as PersonActivity & {
+          personName: string;
+          personId: string;
+        },
+    ),
+  )
   .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
   .slice(0, 12) as (PersonActivity & { personName: string; personId: string })[];

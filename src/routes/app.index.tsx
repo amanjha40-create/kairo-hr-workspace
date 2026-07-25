@@ -9,11 +9,13 @@ import { VerificationPill, InvitationPill } from "@/components/app/workspace-pil
 import { PermissionDenied } from "@/components/app/access/PermissionDenied";
 import { useTrustInvitationSummaryQuery } from "@/lib/queries/trust-invitations";
 import { useVerificationRequestListQuery } from "@/lib/queries/verification-requests";
+import { useOrganizationPeopleDirectoryQuery } from "@/lib/queries/organization-people";
 import {
   canReviewVerification,
   getVerificationErrorMessage,
   type VerificationInboxStatus,
 } from "@/lib/employment-verifications";
+import { getPeopleOverviewCounts } from "@/lib/organization-people";
 import {
   Plus,
   MailPlus,
@@ -43,14 +45,16 @@ export const Route = createFileRoute("/app/")({
 });
 
 function Overview() {
-  const { people, requests, attention, setInviteOpen, emptyMode, setEmptyMode } =
-    useDashboard();
+  const { requests, attention, setInviteOpen, emptyMode, setEmptyMode } = useDashboard();
   const { org, can } = useAccess();
   const canInvite = can("invite_candidate");
   const invitationSummaryQuery = useTrustInvitationSummaryQuery(org?.publicId);
   const verificationListQuery = useVerificationRequestListQuery(org?.publicId, {
     sort_by: "updated_at",
     sort_order: "desc",
+  });
+  const peopleSummaryQuery = useOrganizationPeopleDirectoryQuery(org?.publicId, {
+    page_size: 1,
   });
   const invitationCounts = invitationSummaryQuery.data ?? {
     active: 0,
@@ -68,21 +72,22 @@ function Overview() {
     0;
   const verificationRows = verificationListQuery.data ?? [];
   const hasVerificationData = verificationRows.length > 0;
+  const peopleCounts = peopleSummaryQuery.data
+    ? getPeopleOverviewCounts(peopleSummaryQuery.data.summary)
+    : { totalPeople: 0, inVerification: 0 };
   const isEmpty =
     emptyMode ||
     (!invitationSummaryQuery.isPending &&
       !verificationListQuery.isPending &&
-      people.length === 0 &&
+      !peopleSummaryQuery.isPending &&
+      !peopleSummaryQuery.error &&
+      peopleCounts.totalPeople === 0 &&
       !hasInvitationData &&
       !hasVerificationData);
 
   const activeInvitations = invitationCounts.active;
   const awaitingCandidate = invitationCounts.awaiting;
-  const inVerification = people.filter(
-    (p) =>
-      p.workspaceVerificationStatus === "In Verification" ||
-      p.workspaceVerificationStatus === "Clarification Required",
-  ).length;
+  const inVerification = peopleCounts.inVerification;
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
   const completedThisMonth = requests.filter(
     (r) => r.status === "Verified" && new Date(r.requestedAt) >= monthStart,
@@ -102,8 +107,7 @@ function Overview() {
     {
       key: "inbound",
       label: "Employment Verifications",
-      value:
-        verificationListQuery.isPending && !verificationListQuery.data ? "—" : inboundOpen,
+      value: verificationListQuery.isPending && !verificationListQuery.data ? "—" : inboundOpen,
       icon: ShieldCheck,
       desc: "Incoming from other organizations",
       to: "/app/verifications",
