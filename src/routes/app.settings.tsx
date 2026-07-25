@@ -1,21 +1,67 @@
 import { createFileRoute, useBlocker } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { PageHeader, SectionCard } from "@/components/app/primitives";
+import {
+  AlertTriangle,
+  Ban,
+  Bell,
+  Building2,
+  CheckCircle2,
+  Circle,
+  Clock,
+  KeyRound,
+  Lock,
+  LogOut,
+  Save,
+  ShieldAlert,
+  ShieldCheck,
+} from "lucide-react";
+import { EmptyState, PageHeader, SectionCard, TableSkeleton } from "@/components/app/primitives";
+import { PermissionDenied } from "@/components/app/access/PermissionDenied";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  Building2, ShieldCheck, Bell, Lock, CheckCircle2, Clock, AlertTriangle,
-  Ban, Circle, Laptop, Smartphone, LogOut, ShieldAlert,
-} from "lucide-react";
-import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { useAccess } from "@/lib/access-context";
+import {
+  buildNotificationPreferencePayload,
+  buildNotificationPreferenceState,
+  formatSessionTimestamp,
+  getProfileSettingsErrorMessage,
+  mapBackendOrganizationType,
+  mapOrganizationTypeToBackend,
+  ORG_TYPE_OPTIONS,
+  SUPPORTED_NOTIFICATION_PREFERENCE_ROWS,
+  toNullableString,
+  type NotificationPreferenceFormState,
+  type OrganizationSettingsFormValue,
+} from "@/lib/profile-settings";
+import {
+  useAccountSessionsQuery,
+  useAccountSettingsQuery,
+  useChangePasswordMutation,
+  useRevokeAccountSessionMutation,
+  useUpdateAccountSettingsMutation,
+  useUpdateOrganizationSettingsMutation,
+} from "@/lib/queries/user-settings";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/app/settings")({ component: SettingsPage });
 
@@ -28,85 +74,69 @@ const SECTIONS = [
 
 type SectionId = (typeof SECTIONS)[number]["id"];
 
-// ---------- default state ----------
-const DEFAULT_ORG = {
-  name: "Acme Inc.",
-  type: "Private Limited",
-  website: "https://acme.co",
-  emailDomain: "acme.co",
-  industry: "Technology",
-  headquarters: "Bengaluru, KA",
-  verificationStatus: "Verified" as OrgVerificationStatus,
-};
+function mapOrgToForm(
+  org: NonNullable<ReturnType<typeof useAccess>["org"]>,
+  suspended: boolean,
+): OrganizationSettingsFormValue {
+  return {
+    name: org.name,
+    type: org.type,
+    website: org.website,
+    workEmail: org.workEmail,
+    domain: org.domain,
+    industry: org.industry,
+    location: org.location,
+    verification: org.verification,
+    suspended,
+  };
+}
 
-type OrgVerificationStatus =
-  | "Setup Incomplete"
-  | "Verification Pending"
-  | "Verified"
-  | "Additional Information Required"
-  | "Suspended";
-
-const DEFAULT_PREFS = {
-  invitationExpiry: "7",
-  reminderSchedule: "every-3-days",
-  priority: "standard",
-  notificationRecipient: "requester",
-  candidateComms: "email",
-};
-
-const NOTIF_ROWS = [
-  { key: "invAccepted", label: "Trust Invitation accepted" },
-  { key: "invExpiring", label: "Trust Invitation expiring" },
-  { key: "candidateSubmitted", label: "Candidate information submitted" },
-  { key: "clarificationReceived", label: "Clarification received" },
-  { key: "empVerReceived", label: "Employment Verification received" },
-  { key: "empVerCompleted", label: "Employment Verification completed" },
-  { key: "teamInviteAccepted", label: "Team invitation accepted" },
-  { key: "weeklySummary", label: "Weekly summary" },
-] as const;
-
-type NotifKey = (typeof NOTIF_ROWS)[number]["key"];
-type NotifPrefs = Record<NotifKey, { inApp: boolean; email: boolean }>;
-
-const DEFAULT_NOTIFS: NotifPrefs = NOTIF_ROWS.reduce((acc, r) => {
-  acc[r.key] = { inApp: true, email: r.key !== "weeklySummary" };
-  return acc;
-}, {} as NotifPrefs);
-
-const MOCK_SESSIONS = [
-  { id: "s1", device: "MacBook Pro · Chrome", location: "Bengaluru, IN", lastActive: "Active now", current: true, icon: Laptop },
-  { id: "s2", device: "iPhone 15 · Safari", location: "Bengaluru, IN", lastActive: "2 hours ago", current: false, icon: Smartphone },
-  { id: "s3", device: "Windows · Firefox", location: "Mumbai, IN", lastActive: "Yesterday", current: false, icon: Laptop },
-];
-
-const MOCK_SECURITY_ACTIVITY = [
-  { id: "a1", label: "Password changed", when: "12 days ago", tone: "muted" as const },
-  { id: "a2", label: "New sign-in from Chrome on macOS", when: "2 weeks ago", tone: "muted" as const },
-  { id: "a3", label: "Failed sign-in attempt blocked", when: "3 weeks ago", tone: "warn" as const },
-];
-
-// ---------- main page ----------
 function SettingsPage() {
+  const { org, can, state: accessState } = useAccess();
+  const canSaveSettings = can("save_settings");
+  const accountSettingsQuery = useAccountSettingsQuery();
+  const sessionsQuery = useAccountSessionsQuery();
+  const updateAccountSettingsMutation = useUpdateAccountSettingsMutation();
+  const revokeSessionMutation = useRevokeAccountSessionMutation();
+  const updateOrganizationMutation = useUpdateOrganizationSettingsMutation(org?.publicId);
+  const changePasswordMutation = useChangePasswordMutation();
+
   const [tab, setTab] = useState<SectionId>("org");
+  const [orgForm, setOrgForm] = useState<OrganizationSettingsFormValue | null>(null);
+  const [savedOrgForm, setSavedOrgForm] = useState<OrganizationSettingsFormValue | null>(null);
+  const [notifForm, setNotifForm] = useState<NotificationPreferenceFormState | null>(null);
+  const [savedNotifForm, setSavedNotifForm] = useState<NotificationPreferenceFormState | null>(
+    null,
+  );
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordError, setPasswordError] = useState<string | null>(null);
 
-  const [org, setOrg] = useState(DEFAULT_ORG);
-  const [prefs, setPrefs] = useState(DEFAULT_PREFS);
-  const [notifs, setNotifs] = useState<NotifPrefs>(DEFAULT_NOTIFS);
+  useEffect(() => {
+    if (!org || orgForm) return;
+    const next = mapOrgToForm(org, accessState === "org_suspended");
+    setOrgForm(next);
+    setSavedOrgForm(next);
+  }, [accessState, org, orgForm]);
 
-  // saved snapshots (what "the server" has)
-  const [savedOrg, setSavedOrg] = useState(DEFAULT_ORG);
-  const [savedPrefs, setSavedPrefs] = useState(DEFAULT_PREFS);
-  const [savedNotifs, setSavedNotifs] = useState<NotifPrefs>(DEFAULT_NOTIFS);
+  useEffect(() => {
+    if (!accountSettingsQuery.data || notifForm) return;
+    const next = buildNotificationPreferenceState(
+      accountSettingsQuery.data.notification_preferences,
+    );
+    setNotifForm(next);
+    setSavedNotifForm(next);
+  }, [accountSettingsQuery.data, notifForm]);
 
   const dirty = useMemo(
     () =>
-      JSON.stringify(org) !== JSON.stringify(savedOrg) ||
-      JSON.stringify(prefs) !== JSON.stringify(savedPrefs) ||
-      JSON.stringify(notifs) !== JSON.stringify(savedNotifs),
-    [org, savedOrg, prefs, savedPrefs, notifs, savedNotifs],
+      JSON.stringify(orgForm) !== JSON.stringify(savedOrgForm) ||
+      JSON.stringify(notifForm) !== JSON.stringify(savedNotifForm),
+    [notifForm, orgForm, savedNotifForm, savedOrgForm],
   );
 
-  // block route navigation on unsaved changes
   useBlocker({
     shouldBlockFn: ({ current, next }) => {
       if (!dirty) return false;
@@ -115,29 +145,122 @@ function SettingsPage() {
     },
   });
 
-  // block full page unload
   useEffect(() => {
     if (!dirty) return;
-    const h = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = "";
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
     };
-    window.addEventListener("beforeunload", h);
-    return () => window.removeEventListener("beforeunload", h);
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [dirty]);
 
-  const handleSave = () => {
-    setSavedOrg(org);
-    setSavedPrefs(prefs);
-    setSavedNotifs(notifs);
-    toast.success("Settings saved", { description: "Your changes are now live in this workspace." });
+  const orgDirty = JSON.stringify(orgForm) !== JSON.stringify(savedOrgForm);
+  const notifDirty = JSON.stringify(notifForm) !== JSON.stringify(savedNotifForm);
+
+  const updateOrgField = <K extends keyof OrganizationSettingsFormValue>(
+    key: K,
+    value: OrganizationSettingsFormValue[K],
+  ) => {
+    setOrgForm((current) => (current ? { ...current, [key]: value } : current));
+  };
+
+  const updateNotifField = (eventType: keyof NotificationPreferenceFormState, enabled: boolean) => {
+    setNotifForm((current) =>
+      current
+        ? {
+            ...current,
+            [eventType]: {
+              ...current[eventType],
+              enabled: current[eventType].required ? true : enabled,
+            },
+          }
+        : current,
+    );
+  };
+
+  const handleSave = async () => {
+    try {
+      if (orgDirty && orgForm && org) {
+        const updatedOrg = await updateOrganizationMutation.mutateAsync({
+          name: toNullableString(orgForm.name) ?? orgForm.name,
+          organization_type: mapOrganizationTypeToBackend(orgForm.type),
+          website: toNullableString(orgForm.website) ?? undefined,
+          work_email: toNullableString(orgForm.workEmail) ?? undefined,
+          domain: toNullableString(orgForm.domain) ?? undefined,
+          industry: toNullableString(orgForm.industry) ?? undefined,
+          location: toNullableString(orgForm.location) ?? undefined,
+        });
+
+        const nextOrg: OrganizationSettingsFormValue = {
+          name: updatedOrg.name,
+          type: mapBackendOrganizationType(updatedOrg.organization_type),
+          website: updatedOrg.website ?? "",
+          workEmail: updatedOrg.work_email ?? "",
+          domain: updatedOrg.domain ?? "",
+          industry: updatedOrg.industry ?? "",
+          location: updatedOrg.location ?? "",
+          verification:
+            updatedOrg.verification_state === "verified"
+              ? "verified"
+              : updatedOrg.verification_state === "verification_pending" ||
+                  updatedOrg.verification_state === "additional_information_required"
+                ? "pending"
+                : "unverified",
+          suspended: Boolean(updatedOrg.suspended_at),
+        };
+        setOrgForm(nextOrg);
+        setSavedOrgForm(nextOrg);
+      }
+
+      if (notifDirty && notifForm) {
+        await updateAccountSettingsMutation.mutateAsync({
+          notification_preferences: buildNotificationPreferencePayload(notifForm),
+        });
+        setSavedNotifForm(notifForm);
+      }
+
+      toast.success("Settings saved");
+    } catch (error) {
+      toast.error(getProfileSettingsErrorMessage(error, "We couldn't save these settings."));
+    }
   };
 
   const handleCancel = () => {
-    setOrg(savedOrg);
-    setPrefs(savedPrefs);
-    setNotifs(savedNotifs);
+    setOrgForm(savedOrgForm);
+    setNotifForm(savedNotifForm);
     toast.message("Changes discarded");
+  };
+
+  const handleChangePassword = async () => {
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setPasswordError("Please complete all password fields.");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError("New passwords do not match.");
+      return;
+    }
+
+    setPasswordError(null);
+
+    try {
+      await changePasswordMutation.mutateAsync({
+        current_password: currentPassword,
+        new_password: newPassword,
+        confirm_password: confirmPassword,
+      });
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setPasswordOpen(false);
+      toast.success("Password updated");
+    } catch (error) {
+      setPasswordError(getProfileSettingsErrorMessage(error, "We couldn't update your password."));
+    }
   };
 
   return (
@@ -149,47 +272,93 @@ function SettingsPage() {
       />
 
       <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
-        {/* Desktop rail */}
         <nav className="hidden lg:block space-y-0.5 sticky top-24 self-start">
-          {SECTIONS.map((s) => (
+          {SECTIONS.map((section) => (
             <button
-              key={s.id}
-              onClick={() => setTab(s.id)}
+              key={section.id}
+              onClick={() => setTab(section.id)}
               className={cn(
                 "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
-                tab === s.id
+                tab === section.id
                   ? "bg-foreground text-background"
                   : "text-muted-foreground hover:text-foreground hover:bg-foreground/[0.04]",
               )}
             >
-              <s.icon className="h-4 w-4" /> {s.label}
+              <section.icon className="h-4 w-4" /> {section.label}
             </button>
           ))}
         </nav>
 
-        {/* Mobile / tablet section picker */}
         <div className="lg:hidden">
           <Label className="text-xs text-muted-foreground mb-1.5 block">Section</Label>
-          <Select value={tab} onValueChange={(v) => setTab(v as SectionId)}>
-            <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+          <Select value={tab} onValueChange={(value) => setTab(value as SectionId)}>
+            <SelectTrigger className="rounded-xl">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
-              {SECTIONS.map((s) => (
-                <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>
+              {SECTIONS.map((section) => (
+                <SelectItem key={section.id} value={section.id}>
+                  {section.label}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
 
         <div className="min-w-0 space-y-6">
-          {tab === "org" && <OrgSection value={org} onChange={setOrg} />}
-          {tab === "prefs" && <PrefsSection value={prefs} onChange={setPrefs} />}
-          {tab === "notif" && <NotifSection value={notifs} onChange={setNotifs} />}
-          {tab === "security" && <SecuritySection />}
+          {tab === "org" ? (
+            <OrgSection
+              canSaveSettings={canSaveSettings}
+              error={updateOrganizationMutation.error}
+              onChange={updateOrgField}
+              value={orgForm}
+            />
+          ) : null}
+
+          {tab === "prefs" ? <VerificationPreferencesUnavailable /> : null}
+
+          {tab === "notif" ? (
+            <NotifSection
+              error={accountSettingsQuery.error}
+              onChange={updateNotifField}
+              onRetry={() => void accountSettingsQuery.refetch()}
+              value={notifForm}
+              loading={accountSettingsQuery.isPending && !accountSettingsQuery.data}
+            />
+          ) : null}
+
+          {tab === "security" ? (
+            <SecuritySection
+              sessions={sessionsQuery.data}
+              sessionsError={sessionsQuery.error}
+              sessionsLoading={sessionsQuery.isPending && !sessionsQuery.data}
+              onRetrySessions={() => void sessionsQuery.refetch()}
+              onRevokeSession={async (sessionId) => {
+                try {
+                  await revokeSessionMutation.mutateAsync(sessionId);
+                  toast.success("Session revoked");
+                } catch (error) {
+                  toast.error(
+                    getProfileSettingsErrorMessage(error, "We couldn't revoke that session."),
+                  );
+                }
+              }}
+              passwordOpen={passwordOpen}
+              setPasswordOpen={setPasswordOpen}
+              currentPassword={currentPassword}
+              newPassword={newPassword}
+              confirmPassword={confirmPassword}
+              setCurrentPassword={setCurrentPassword}
+              setNewPassword={setNewPassword}
+              setConfirmPassword={setConfirmPassword}
+              passwordError={passwordError}
+              onSubmitPassword={() => void handleChangePassword()}
+            />
+          ) : null}
         </div>
       </div>
 
-      {/* Save bar — sticky on all breakpoints when dirty */}
-      {dirty && tab !== "security" && (
+      {dirty && tab !== "security" ? (
         <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/70">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-3">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -197,116 +366,236 @@ function SettingsPage() {
               You have unsaved changes.
             </div>
             <div className="ml-auto flex items-center gap-2">
-              <Button variant="ghost" size="sm" className="rounded-lg" onClick={handleCancel}>Cancel</Button>
-              <Button size="sm" className="btn-premium rounded-lg" onClick={handleSave}>Save changes</Button>
+              <Button variant="ghost" size="sm" className="rounded-lg" onClick={handleCancel}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                className="btn-premium rounded-lg"
+                onClick={() => void handleSave()}
+                disabled={
+                  updateOrganizationMutation.isPending || updateAccountSettingsMutation.isPending
+                }
+              >
+                <Save className="h-4 w-4 mr-1.5" /> Save changes
+              </Button>
             </div>
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
 
-function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+function Field({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
   return (
     <div>
       <Label className="text-xs text-muted-foreground mb-1.5 block">{label}</Label>
       {children}
-      {hint && <p className="text-[11px] text-muted-foreground mt-1.5">{hint}</p>}
+      {hint ? <p className="text-[11px] text-muted-foreground mt-1.5">{hint}</p> : null}
     </div>
   );
 }
 
-// ---------- Organization ----------
-function OrgVerificationBadge({ status }: { status: OrgVerificationStatus }) {
-  const config: Record<OrgVerificationStatus, { icon: typeof CheckCircle2; className: string; description: string }> = {
-    "Setup Incomplete": {
-      icon: Circle,
-      className: "bg-muted text-muted-foreground border-border",
-      description: "Finish organization details to begin verification.",
-    },
-    "Verification Pending": {
-      icon: Clock,
-      className: "bg-warning/10 text-warning-foreground border-warning/30",
-      description: "Kairo is reviewing your organization. This typically takes a few business days.",
-    },
-    Verified: {
-      icon: CheckCircle2,
-      className: "bg-success/10 text-success border-success/30",
-      description: "Your organization is verified. You can send Trust Invitations and receive employment verifications.",
-    },
-    "Additional Information Required": {
-      icon: AlertTriangle,
-      className: "bg-warning/15 text-warning-foreground border-warning/40",
-      description: "Our team requested additional information. Check your inbox for details.",
-    },
-    Suspended: {
+function OrgVerificationBadge({
+  verification,
+  suspended,
+}: {
+  verification: OrganizationSettingsFormValue["verification"];
+  suspended: boolean;
+}) {
+  const status = suspended
+    ? "suspended"
+    : verification === "verified"
+      ? "verified"
+      : verification === "pending"
+        ? "pending"
+        : "unverified";
+
+  const config = {
+    suspended: {
       icon: Ban,
-      className: "bg-destructive/10 text-destructive border-destructive/30",
+      title: "Suspended",
       description: "This workspace is suspended. Contact support to restore access.",
+      className: "bg-destructive/10 text-destructive border-destructive/30",
     },
-  };
-  const c = config[status];
-  const Icon = c.icon;
+    verified: {
+      icon: CheckCircle2,
+      title: "Verified",
+      description: "Your organization is verified and ready for backend-driven workspace actions.",
+      className: "bg-success/10 text-success border-success/30",
+    },
+    pending: {
+      icon: Clock,
+      title: "Verification pending",
+      description:
+        "Kairo is reviewing your organization details. Verification updates will appear here.",
+      className: "bg-warning/10 text-warning-foreground border-warning/30",
+    },
+    unverified: {
+      icon: Circle,
+      title: "Setup incomplete",
+      description: "Finish your organization details to continue setting up this workspace.",
+      className: "bg-muted text-muted-foreground border-border",
+    },
+  }[status];
+
+  const Icon = config.icon;
+
   return (
-    <div className={cn("rounded-xl border p-4 flex items-start gap-3", c.className)}>
+    <div className={cn("rounded-xl border p-4 flex items-start gap-3", config.className)}>
       <Icon className="h-5 w-5 mt-0.5 flex-shrink-0" />
       <div>
-        <div className="text-sm font-medium">{status}</div>
-        <p className="text-xs mt-0.5 opacity-80">{c.description}</p>
+        <div className="text-sm font-medium">{config.title}</div>
+        <p className="text-xs mt-0.5 opacity-80">{config.description}</p>
       </div>
     </div>
   );
 }
 
-function OrgSection({ value, onChange }: { value: typeof DEFAULT_ORG; onChange: (v: typeof DEFAULT_ORG) => void }) {
-  const set = <K extends keyof typeof DEFAULT_ORG>(k: K, v: (typeof DEFAULT_ORG)[K]) => onChange({ ...value, [k]: v });
+function OrgSection({
+  value,
+  onChange,
+  canSaveSettings,
+  error,
+}: {
+  value: OrganizationSettingsFormValue | null;
+  onChange: <K extends keyof OrganizationSettingsFormValue>(
+    key: K,
+    value: OrganizationSettingsFormValue[K],
+  ) => void;
+  canSaveSettings: boolean;
+  error: unknown;
+}) {
+  if (!value) {
+    return (
+      <EmptyState
+        icon={Building2}
+        title="No active organization"
+        description="Organization settings become available after a workspace organization is active."
+      />
+    );
+  }
+
   return (
-    <SectionCard title="Organization" description="Public information shown to candidates and other employers.">
+    <SectionCard
+      title="Organization"
+      description="Public information shown to candidates and other employers."
+    >
       <div className="p-6 space-y-6">
-        <OrgVerificationBadge status={value.verificationStatus} />
+        {!canSaveSettings ? (
+          <PermissionDenied
+            className="block"
+            message="Your role can view organization settings, but only permitted users can change them."
+          />
+        ) : null}
+
+        {error ? (
+          <div className="rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+            {getProfileSettingsErrorMessage(
+              error,
+              "We couldn't save the latest organization changes.",
+            )}
+          </div>
+        ) : null}
+
+        <OrgVerificationBadge verification={value.verification} suspended={value.suspended} />
 
         <div className="grid gap-5 sm:grid-cols-2">
           <Field label="Organization name">
-            <Input value={value.name} onChange={(e) => set("name", e.target.value)} className="rounded-xl" />
+            <Input
+              value={value.name}
+              onChange={(event) => onChange("name", event.target.value)}
+              className="rounded-xl"
+              disabled={!canSaveSettings}
+            />
           </Field>
           <Field label="Organization type">
-            <Select value={value.type} onValueChange={(v) => set("type", v)}>
-              <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+            <Select
+              value={value.type}
+              onValueChange={(next) =>
+                onChange("type", next as OrganizationSettingsFormValue["type"])
+              }
+              disabled={!canSaveSettings}
+            >
+              <SelectTrigger className="rounded-xl">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
-                {["Private Limited", "Public Limited", "LLP", "Partnership", "Sole Proprietorship", "Non-profit", "Government"].map((t) => (
-                  <SelectItem key={t} value={t}>{t}</SelectItem>
+                {ORG_TYPE_OPTIONS.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {type}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </Field>
           <Field label="Website">
-            <Input value={value.website} onChange={(e) => set("website", e.target.value)} placeholder="https://" className="rounded-xl" />
+            <Input
+              value={value.website}
+              onChange={(event) => onChange("website", event.target.value)}
+              placeholder="https://"
+              className="rounded-xl"
+              disabled={!canSaveSettings}
+            />
           </Field>
-          <Field label="Work email domain" hint="Team members signing in with this domain are auto-linked to your workspace.">
-            <Input value={value.emailDomain} onChange={(e) => set("emailDomain", e.target.value)} className="rounded-xl" />
+          <Field label="Work email">
+            <Input
+              value={value.workEmail}
+              onChange={(event) => onChange("workEmail", event.target.value)}
+              className="rounded-xl"
+              disabled={!canSaveSettings}
+            />
+          </Field>
+          <Field
+            label="Work email domain"
+            hint="Team members signing in with this domain are linked to your workspace."
+          >
+            <Input
+              value={value.domain}
+              onChange={(event) => onChange("domain", event.target.value)}
+              className="rounded-xl"
+              disabled={!canSaveSettings}
+            />
           </Field>
           <Field label="Industry">
-            <Select value={value.industry} onValueChange={(v) => set("industry", v)}>
-              <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {["Technology", "Financial Services", "Healthcare", "Retail & E-commerce", "Manufacturing", "Education", "Logistics", "Media", "Other"].map((t) => (
-                  <SelectItem key={t} value={t}>{t}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Input
+              value={value.industry}
+              onChange={(event) => onChange("industry", event.target.value)}
+              className="rounded-xl"
+              disabled={!canSaveSettings}
+            />
           </Field>
           <Field label="Headquarters">
-            <Input value={value.headquarters} onChange={(e) => set("headquarters", e.target.value)} className="rounded-xl" />
+            <Input
+              value={value.location}
+              onChange={(event) => onChange("location", event.target.value)}
+              className="rounded-xl"
+              disabled={!canSaveSettings}
+            />
           </Field>
         </div>
 
         <div>
           <Label className="text-xs text-muted-foreground mb-1.5 block">Organization logo</Label>
           <div className="flex flex-wrap items-center gap-4">
-            <div className="h-16 w-16 rounded-xl bg-foreground/[0.06] border border-border/60 flex items-center justify-center text-xs text-muted-foreground">Logo</div>
-            <Button variant="outline" size="sm" className="rounded-lg" onClick={() => toast.message("Logo upload is a UI preview")}>Upload logo</Button>
-            <p className="text-[11px] text-muted-foreground">PNG or SVG, at least 256×256.</p>
+            <div className="h-16 w-16 rounded-xl bg-foreground/[0.06] border border-border/60 flex items-center justify-center text-xs text-muted-foreground">
+              Logo
+            </div>
+            <Button variant="outline" size="sm" className="rounded-lg" disabled>
+              Coming soon
+            </Button>
+            <p className="text-[11px] text-muted-foreground">
+              Logo upload is not yet supported by the current backend contract.
+            </p>
           </div>
         </div>
       </div>
@@ -314,143 +603,175 @@ function OrgSection({ value, onChange }: { value: typeof DEFAULT_ORG; onChange: 
   );
 }
 
-// ---------- Verification preferences ----------
-function PrefsSection({ value, onChange }: { value: typeof DEFAULT_PREFS; onChange: (v: typeof DEFAULT_PREFS) => void }) {
-  const set = <K extends keyof typeof DEFAULT_PREFS>(k: K, v: (typeof DEFAULT_PREFS)[K]) => onChange({ ...value, [k]: v });
+function VerificationPreferencesUnavailable() {
   return (
-    <SectionCard title="Verification preferences" description="Defaults applied to new Trust Invitations and verification workflows.">
-      <div className="p-6 grid gap-5 sm:grid-cols-2">
-        <Field label="Default Trust Invitation expiry">
-          <Select value={value.invitationExpiry} onValueChange={(v) => set("invitationExpiry", v)}>
-            <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="3">3 days</SelectItem>
-              <SelectItem value="7">7 days</SelectItem>
-              <SelectItem value="14">14 days</SelectItem>
-              <SelectItem value="30">30 days</SelectItem>
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field label="Reminder schedule">
-          <Select value={value.reminderSchedule} onValueChange={(v) => set("reminderSchedule", v)}>
-            <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="off">No reminders</SelectItem>
-              <SelectItem value="daily">Daily</SelectItem>
-              <SelectItem value="every-3-days">Every 3 days</SelectItem>
-              <SelectItem value="weekly">Weekly</SelectItem>
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field label="Default verification priority">
-          <Select value={value.priority} onValueChange={(v) => set("priority", v)}>
-            <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="standard">Standard</SelectItem>
-              <SelectItem value="high">High</SelectItem>
-              <SelectItem value="urgent">Urgent</SelectItem>
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field label="Default notification recipient" hint="Who receives updates when a request progresses.">
-          <Select value={value.notificationRecipient} onValueChange={(v) => set("notificationRecipient", v)}>
-            <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="requester">Requester only</SelectItem>
-              <SelectItem value="hiring-manager">Requester + hiring manager</SelectItem>
-              <SelectItem value="workspace-admins">All Organization Admins</SelectItem>
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field label="Candidate communication preference">
-          <Select value={value.candidateComms} onValueChange={(v) => set("candidateComms", v)}>
-            <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="email">Email only</SelectItem>
-              <SelectItem value="email-inapp">Email + in-app</SelectItem>
-              <SelectItem value="inapp">In-app only</SelectItem>
-            </SelectContent>
-          </Select>
-        </Field>
-      </div>
-    </SectionCard>
-  );
-}
-
-// ---------- Notifications ----------
-function NotifSection({ value, onChange }: { value: NotifPrefs; onChange: (v: NotifPrefs) => void }) {
-  const toggle = (k: NotifKey, channel: "inApp" | "email") =>
-    onChange({ ...value, [k]: { ...value[k], [channel]: !value[k][channel] } });
-  return (
-    <SectionCard title="Notifications" description="Choose how you'd like to be notified about workspace activity.">
-      <div>
-        <div className="hidden sm:grid grid-cols-[minmax(0,1fr)_80px_80px] px-6 py-3 text-[11px] uppercase tracking-wide text-muted-foreground border-b border-border/60">
-          <div>Event</div>
-          <div className="text-center">In-app</div>
-          <div className="text-center">Email</div>
-        </div>
-        <div className="divide-y divide-border/60">
-          {NOTIF_ROWS.map((row) => (
-            <div
-              key={row.key}
-              className="px-6 py-3.5 grid gap-3 sm:grid-cols-[minmax(0,1fr)_80px_80px] sm:items-center"
-            >
-              <div className="text-sm">{row.label}</div>
-              <div className="flex items-center gap-2 sm:justify-center">
-                <Switch checked={value[row.key].inApp} onCheckedChange={() => toggle(row.key, "inApp")} />
-                <span className="text-xs text-muted-foreground sm:hidden">In-app</span>
-              </div>
-              <div className="flex items-center gap-2 sm:justify-center">
-                <Switch checked={value[row.key].email} onCheckedChange={() => toggle(row.key, "email")} />
-                <span className="text-xs text-muted-foreground sm:hidden">Email</span>
-              </div>
+    <SectionCard
+      title="Verification preferences"
+      description="Defaults applied to new Trust Invitations and verification workflows."
+    >
+      <div className="p-6">
+        <div className="rounded-2xl border border-border/60 bg-foreground/[0.03] p-5">
+          <div className="flex items-start gap-3">
+            <div className="h-10 w-10 rounded-xl bg-foreground/[0.06] flex items-center justify-center">
+              <ShieldCheck className="h-4 w-4 text-muted-foreground" />
             </div>
-          ))}
+            <div>
+              <div className="text-sm font-medium">Coming soon</div>
+              <p className="text-sm text-muted-foreground mt-1">
+                Verification default settings are not yet backed by the current backend contract, so
+                this section is intentionally unavailable.
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     </SectionCard>
   );
 }
 
-// ---------- Security ----------
-function SecuritySection() {
-  const [pwOpen, setPwOpen] = useState(false);
-  const [signOutOpen, setSignOutOpen] = useState(false);
-  const [current, setCurrent] = useState("");
-  const [next, setNext] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [sessions, setSessions] = useState(MOCK_SESSIONS);
+function NotifSection({
+  value,
+  onChange,
+  loading,
+  error,
+  onRetry,
+}: {
+  value: NotificationPreferenceFormState | null;
+  onChange: (eventType: keyof NotificationPreferenceFormState, enabled: boolean) => void;
+  loading: boolean;
+  error: unknown;
+  onRetry: () => void;
+}) {
+  return (
+    <SectionCard
+      title="Notifications"
+      description="Choose which backend-supported account notifications should stay enabled."
+    >
+      {loading ? (
+        <TableSkeleton rows={4} />
+      ) : error ? (
+        <EmptyState
+          icon={AlertTriangle}
+          title="Notification preferences didn't load"
+          description={getProfileSettingsErrorMessage(error, "Please try again.")}
+          action={{ label: "Retry", onClick: onRetry }}
+        />
+      ) : !value ? (
+        <EmptyState
+          icon={Bell}
+          title="Notification preferences unavailable"
+          description="We couldn't load your account notification preferences."
+          action={{ label: "Retry", onClick: onRetry }}
+        />
+      ) : (
+        <div>
+          <div className="hidden sm:grid grid-cols-[minmax(0,1fr)_100px_100px] px-6 py-3 text-[11px] uppercase tracking-wide text-muted-foreground border-b border-border/60">
+            <div>Event</div>
+            <div className="text-center">Enabled</div>
+            <div className="text-center">Email</div>
+          </div>
+          <div className="divide-y divide-border/60">
+            {SUPPORTED_NOTIFICATION_PREFERENCE_ROWS.map((row) => {
+              const preference = value[row.eventType];
+              const emailEnabled = preference.preferredChannels.includes("email");
 
-  const submitPassword = () => {
-    if (!current || !next || next !== confirm) {
-      toast.error("Please fill all fields and confirm the new password.");
-      return;
-    }
-    setPwOpen(false);
-    setCurrent(""); setNext(""); setConfirm("");
-    toast.success("Password updated");
-  };
+              return (
+                <div
+                  key={row.eventType}
+                  className="px-6 py-3.5 grid gap-3 sm:grid-cols-[minmax(0,1fr)_100px_100px] sm:items-center"
+                >
+                  <div>
+                    <div className="text-sm font-medium">{row.label}</div>
+                    <div className="text-[11px] text-muted-foreground mt-0.5">
+                      {row.description}
+                    </div>
+                    {row.required ? (
+                      <div className="text-[11px] text-muted-foreground mt-1">
+                        Required security notification
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="flex items-center gap-2 sm:justify-center">
+                    <Switch
+                      checked={row.required ? true : preference.enabled}
+                      onCheckedChange={(checked) => onChange(row.eventType, checked)}
+                      disabled={row.required}
+                    />
+                    <span className="text-xs text-muted-foreground sm:hidden">Enabled</span>
+                  </div>
+                  <div className="flex items-center gap-2 sm:justify-center">
+                    <Switch checked={emailEnabled} disabled />
+                    <span className="text-xs text-muted-foreground sm:hidden">Email</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="px-6 py-4 text-[11px] text-muted-foreground border-t border-border/60">
+            Channel-specific email delivery controls are not yet supported by the current backend
+            preference contract, so email status is shown read-only.
+          </div>
+        </div>
+      )}
+    </SectionCard>
+  );
+}
 
-  const revokeSession = (id: string) => {
-    setSessions((s) => s.filter((x) => x.id !== id));
-    toast.success("Session signed out");
-  };
-
-  const signOutAll = () => {
-    setSessions((s) => s.filter((x) => x.current));
-    setSignOutOpen(false);
-    toast.success("All other sessions signed out");
-  };
-
+function SecuritySection({
+  sessions,
+  sessionsLoading,
+  sessionsError,
+  onRetrySessions,
+  onRevokeSession,
+  passwordOpen,
+  setPasswordOpen,
+  currentPassword,
+  newPassword,
+  confirmPassword,
+  setCurrentPassword,
+  setNewPassword,
+  setConfirmPassword,
+  passwordError,
+  onSubmitPassword,
+}: {
+  sessions:
+    | Array<{
+        id: string;
+        created_at: string;
+        expires_at: string;
+        last_active_at: string;
+        current: boolean;
+      }>
+    | undefined;
+  sessionsLoading: boolean;
+  sessionsError: unknown;
+  onRetrySessions: () => void;
+  onRevokeSession: (sessionId: string) => Promise<void>;
+  passwordOpen: boolean;
+  setPasswordOpen: (open: boolean) => void;
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+  setCurrentPassword: (value: string) => void;
+  setNewPassword: (value: string) => void;
+  setConfirmPassword: (value: string) => void;
+  passwordError: string | null;
+  onSubmitPassword: () => void;
+}) {
   return (
     <div className="space-y-6">
       <SectionCard title="Password" description="Update the password for your Kairo account.">
         <div className="p-6">
-          <Button variant="outline" className="rounded-xl" onClick={() => setPwOpen(true)}>Change password</Button>
+          <Button variant="outline" className="rounded-xl" onClick={() => setPasswordOpen(true)}>
+            Change password
+          </Button>
         </div>
       </SectionCard>
 
-      <SectionCard title="Multi-factor authentication" description="Add a second layer of security to sign-in.">
+      <SectionCard
+        title="Multi-factor authentication"
+        description="Add a second layer of security to sign-in."
+      >
         <div className="p-6 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="h-9 w-9 rounded-lg bg-foreground/[0.05] flex items-center justify-center">
@@ -458,106 +779,145 @@ function SecuritySection() {
             </div>
             <div>
               <div className="text-sm font-medium">Authenticator app</div>
-              <div className="text-[11px] text-muted-foreground">Time-based one-time passcodes.</div>
+              <div className="text-[11px] text-muted-foreground">
+                Time-based one-time passcodes.
+              </div>
             </div>
           </div>
-          <span className="text-[11px] px-2 py-0.5 rounded-full bg-foreground/[0.05] text-muted-foreground">Coming soon</span>
+          <Badge variant="outline">Coming soon</Badge>
         </div>
       </SectionCard>
 
       <SectionCard
         title="Active sessions"
-        description="Devices currently signed in to your Kairo account."
+        description="Refresh-token sessions currently active on your account."
         action={
-          <Button size="sm" variant="outline" className="rounded-lg h-8" onClick={() => setSignOutOpen(true)}>
+          <Button size="sm" variant="outline" className="rounded-lg h-8" disabled>
             <LogOut className="h-3.5 w-3.5 mr-1.5" /> Sign out all other sessions
           </Button>
         }
       >
-        <div className="divide-y divide-border/60">
-          {sessions.map((s) => {
-            const Icon = s.icon;
-            return (
-              <div key={s.id} className="px-5 py-3.5 flex flex-wrap items-center gap-3">
-                <div className="h-9 w-9 rounded-lg bg-foreground/[0.05] flex items-center justify-center">
-                  <Icon className="h-4 w-4 text-muted-foreground" />
+        {sessionsLoading ? (
+          <TableSkeleton rows={3} />
+        ) : sessionsError ? (
+          <EmptyState
+            icon={AlertTriangle}
+            title="Sessions didn't load"
+            description={getProfileSettingsErrorMessage(sessionsError, "Please try again.")}
+            action={{ label: "Retry", onClick: onRetrySessions }}
+          />
+        ) : (
+          <div>
+            <div className="px-5 pt-4 text-[11px] text-muted-foreground">
+              “Sign out all other sessions” is unavailable because the current backend only exposes
+              revoke-all, not revoke-all-except-current.
+            </div>
+            <div className="divide-y divide-border/60">
+              {(sessions ?? []).length === 0 ? (
+                <div className="px-5 py-6 text-sm text-muted-foreground">
+                  No active sessions found.
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium flex items-center gap-2">
-                    {s.device}
-                    {s.current && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-success/15 text-success">This device</span>}
-                  </div>
-                  <div className="text-[11px] text-muted-foreground">{s.location} · {s.lastActive}</div>
-                </div>
-                {!s.current && (
-                  <Button variant="ghost" size="sm" className="rounded-lg h-8" onClick={() => revokeSession(s.id)}>
-                    Sign out
-                  </Button>
-                )}
-              </div>
-            );
-          })}
-        </div>
+              ) : (
+                sessions?.map((session) => {
+                  const created = formatSessionTimestamp(session.created_at);
+                  const lastActive = formatSessionTimestamp(session.last_active_at);
+                  const expires = formatSessionTimestamp(session.expires_at);
+
+                  return (
+                    <div key={session.id} className="px-5 py-3.5 flex flex-wrap items-center gap-3">
+                      <div className="h-9 w-9 rounded-lg bg-foreground/[0.05] flex items-center justify-center">
+                        <KeyRound className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium flex items-center gap-2">
+                          Session {session.id.slice(0, 8)}
+                          {session.current ? (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-success/15 text-success">
+                              This session
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground">
+                          Last active {lastActive.relative} · Created {created.absolute} · Expires{" "}
+                          {expires.absolute}
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="rounded-lg h-8"
+                        onClick={() => void onRevokeSession(session.id)}
+                      >
+                        Revoke
+                      </Button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        )}
       </SectionCard>
 
-      <SectionCard title="Recent security activity" description="Sign-ins and security events on your account.">
-        <div className="divide-y divide-border/60">
-          {MOCK_SECURITY_ACTIVITY.map((a) => (
-            <div key={a.id} className="px-5 py-3.5 flex items-center gap-3">
-              <div
-                className={cn(
-                  "h-9 w-9 rounded-lg flex items-center justify-center",
-                  a.tone === "warn" ? "bg-warning/10 text-warning-foreground" : "bg-foreground/[0.05] text-muted-foreground",
-                )}
-              >
-                {a.tone === "warn" ? <ShieldAlert className="h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}
+      <SectionCard
+        title="Recent security activity"
+        description="Sign-ins and security events on your account."
+      >
+        <div className="p-6">
+          <div className="rounded-2xl border border-border/60 bg-foreground/[0.03] p-5">
+            <div className="flex items-start gap-3">
+              <div className="h-10 w-10 rounded-xl bg-foreground/[0.06] flex items-center justify-center">
+                <ShieldAlert className="h-4 w-4 text-muted-foreground" />
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm">{a.label}</div>
-                <div className="text-[11px] text-muted-foreground">{a.when}</div>
+              <div>
+                <div className="text-sm font-medium">Unavailable</div>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Recent security activity is not yet exposed by the current backend contract.
+                </p>
               </div>
             </div>
-          ))}
+          </div>
         </div>
       </SectionCard>
 
-      {/* Change password dialog */}
-      <AlertDialog open={pwOpen} onOpenChange={setPwOpen}>
+      <AlertDialog open={passwordOpen} onOpenChange={setPasswordOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Change password</AlertDialogTitle>
-            <AlertDialogDescription>Enter your current password and choose a new one.</AlertDialogDescription>
+            <AlertDialogDescription>
+              Enter your current password and choose a new one.
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-3 py-2">
             <Field label="Current password">
-              <Input type="password" value={current} onChange={(e) => setCurrent(e.target.value)} className="rounded-xl" />
+              <Input
+                type="password"
+                value={currentPassword}
+                onChange={(event) => setCurrentPassword(event.target.value)}
+                className="rounded-xl"
+              />
             </Field>
             <Field label="New password">
-              <Input type="password" value={next} onChange={(e) => setNext(e.target.value)} className="rounded-xl" />
+              <Input
+                type="password"
+                value={newPassword}
+                onChange={(event) => setNewPassword(event.target.value)}
+                className="rounded-xl"
+              />
             </Field>
             <Field label="Confirm new password">
-              <Input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} className="rounded-xl" />
+              <Input
+                type="password"
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                className="rounded-xl"
+              />
             </Field>
+            {passwordError ? <p className="text-sm text-destructive">{passwordError}</p> : null}
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={submitPassword}>Update password</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Sign-out all confirm */}
-      <AlertDialog open={signOutOpen} onOpenChange={setSignOutOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Sign out all other sessions?</AlertDialogTitle>
-            <AlertDialogDescription>
-              You'll stay signed in on this device. All other devices will need to sign in again.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={signOutAll}>Sign out others</AlertDialogAction>
+            <Button onClick={onSubmitPassword}>Update password</Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

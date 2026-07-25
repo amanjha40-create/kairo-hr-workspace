@@ -72,6 +72,24 @@ export interface WorkspaceBootstrapResponse {
   };
 }
 
+export interface BackendOrganizationResponse {
+  public_id: string;
+  name: string;
+  organization_type: BackendOrganizationType;
+  website: string | null;
+  industry: string | null;
+  location: string | null;
+  work_email: string | null;
+  domain: string | null;
+  domain_verified_at: string | null;
+  verification_state: BackendOrganizationVerificationState;
+  setup_completed_at: string | null;
+  suspended_at: string | null;
+  suspension_reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface WorkspaceOrganizationInvitationResponse {
   public_id: string;
   organization_public_id: string;
@@ -121,14 +139,14 @@ export function declineWorkspaceInvitation(invitationPublicId: string) {
 }
 
 export function createOrganization(payload: OrganizationPayload) {
-  return apiRequest("/api/v1/organizations", {
+  return apiRequest<BackendOrganizationResponse>("/api/v1/organizations", {
     method: "POST",
     body: payload,
   });
 }
 
 export function updateOrganization(orgPublicId: string, payload: Partial<OrganizationPayload>) {
-  return apiRequest(`/api/v1/organizations/${orgPublicId}`, {
+  return apiRequest<BackendOrganizationResponse>(`/api/v1/organizations/${orgPublicId}`, {
     method: "PATCH",
     body: payload,
   });
