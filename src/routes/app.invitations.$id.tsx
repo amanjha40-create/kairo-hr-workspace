@@ -1,96 +1,220 @@
-import { createFileRoute, Link, useNavigate, notFound } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { PageHeader, SectionCard, EmptyState } from "@/components/app/primitives";
+import { PageHeader, SectionCard, EmptyState, TableSkeleton } from "@/components/app/primitives";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { InvitationPill } from "@/components/app/workspace-pills";
+import { PermissionDenied } from "@/components/app/access/PermissionDenied";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { useDashboard } from "@/lib/dashboard-context";
+import { useAccess } from "@/lib/access-context";
 import {
-  ArrowLeft, Copy, Send, RefreshCw, Ban, Mail, User, Building2, ShieldCheck, ArrowUpRight, MailPlus,
-  FileEdit, MailCheck, MailOpen, Timer, CheckCircle2, XCircle, MessageSquare,
+  ArrowLeft,
+  Copy,
+  Send,
+  RefreshCw,
+  Ban,
+  Mail,
+  User,
+  ShieldCheck,
+  MailPlus,
+  FileEdit,
+  MailCheck,
+  MailOpen,
+  Timer,
+  CheckCircle2,
+  XCircle,
+  MessageSquare,
+  AlertTriangle,
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
+import { formatVerificationList, getTrustInvitationErrorMessage } from "@/lib/trust-invitations";
+import {
+  useCancelTrustInvitationMutation,
+  useDeleteTrustInvitationMutation,
+  useResendTrustInvitationMutation,
+  useSendTrustInvitationMutation,
+  useTrustInvitationDetailQuery,
+} from "@/lib/queries/trust-invitations";
 
 export const Route = createFileRoute("/app/invitations/$id")({
   component: InvitationDetailPage,
-  notFoundComponent: NotFound,
-  errorComponent: NotFound,
 });
-
-function NotFound() {
-  return (
-    <EmptyState
-      icon={MailPlus}
-      title="Invitation not found"
-      description="The invitation may have been cancelled or removed."
-    />
-  );
-}
 
 function InvitationDetailPage() {
   const { id } = Route.useParams();
-  const { invitations, sendInvitationDraft, resendInvitation, cancelInvitation, deleteInvitationDraft } = useDashboard();
-  const nav = useNavigate();
-  const inv = invitations.find((i) => i.id === id);
+  const { org, can } = useAccess();
+  const navigate = useNavigate({ from: Route.fullPath });
+  const canInvite = can("invite_candidate");
+  const canModify = can("modify_invitation");
   const [cancelOpen, setCancelOpen] = useState(false);
+  const detailQuery = useTrustInvitationDetailQuery(id);
+  const sendMutation = useSendTrustInvitationMutation(org?.publicId);
+  const resendMutation = useResendTrustInvitationMutation(org?.publicId);
+  const cancelMutation = useCancelTrustInvitationMutation(org?.publicId);
+  const deleteMutation = useDeleteTrustInvitationMutation(org?.publicId);
 
-  if (!inv) {
-    throw notFound();
+  const invitation = detailQuery.data;
+
+  const runAction = async (
+    callback: () => Promise<unknown>,
+    successMessage: string,
+    failureMessage: string,
+  ) => {
+    try {
+      await callback();
+      toast.success(successMessage);
+    } catch (error) {
+      toast.error(getTrustInvitationErrorMessage(error, failureMessage));
+    }
+  };
+
+  const copyLink = async () => {
+    if (!invitation?.invitationUrl) return;
+    await navigator.clipboard?.writeText(invitation.invitationUrl);
+    toast.success("Invitation link copied");
+  };
+
+  if (!canModify) {
+    return (
+      <EmptyState
+        icon={Ban}
+        title="Permission denied"
+        description="You don't have permission to view Trust Invitations in this workspace."
+      />
+    );
   }
 
-  const invitationLink = `https://kairoid.com/i/${inv.id}`;
-  const copyLink = () => { navigator.clipboard?.writeText(invitationLink); toast.success("Invitation link copied"); };
+  if (detailQuery.isPending && !invitation) {
+    return (
+      <div className="space-y-6">
+        <TableSkeleton rows={3} />
+      </div>
+    );
+  }
+
+  if (detailQuery.error) {
+    const status = "status" in detailQuery.error ? detailQuery.error.status : undefined;
+    if (status === 404) {
+      return (
+        <EmptyState
+          icon={MailPlus}
+          title="Invitation not found"
+          description="The invitation may have been deleted, cancelled, or you may not have access to it."
+        />
+      );
+    }
+
+    return (
+      <EmptyState
+        icon={AlertTriangle}
+        title={status === 403 ? "Permission denied" : "Invitation didn't load"}
+        description={getTrustInvitationErrorMessage(detailQuery.error, "Please try again.")}
+        action={{
+          label: "Retry",
+          onClick: () => {
+            void detailQuery.refetch();
+          },
+        }}
+      />
+    );
+  }
+
+  if (!invitation) {
+    return null;
+  }
 
   return (
     <div>
       <div className="mb-6">
-        <Link to="/app/invitations" className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1 mb-4">
+        <Link
+          to="/app/invitations"
+          className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1 mb-4"
+        >
           <ArrowLeft className="h-3 w-3" /> Trust Invitations
         </Link>
       </div>
 
       <PageHeader
-        eyebrow={`Invitation · ${inv.id}`}
-        title={inv.candidateName}
-        description={inv.candidateEmail}
+        eyebrow={`Invitation · ${invitation.id}`}
+        title={invitation.candidateName}
+        description={invitation.candidateEmail}
         actions={
           <div className="flex items-center gap-2">
-            <InvitationPill value={inv.status} />
-            <Button variant="outline" size="sm" className="rounded-xl" onClick={copyLink}>
+            <InvitationPill value={invitation.status} />
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-xl"
+              onClick={() => void copyLink()}
+              disabled={!invitation.invitationUrl}
+            >
               <Copy className="h-3.5 w-3.5 mr-1.5" /> Copy link
             </Button>
-            {inv.status === "Draft" && (
-              <Button size="sm" className="btn-premium rounded-xl" onClick={() => { sendInvitationDraft(inv.id); toast.success("Invitation sent"); }}>
+            {invitation.status === "Draft" && canInvite ? (
+              <Button
+                size="sm"
+                className="btn-premium rounded-xl"
+                onClick={() =>
+                  void runAction(
+                    () => sendMutation.mutateAsync(invitation.id),
+                    "Invitation sent",
+                    "We couldn't send this invitation.",
+                  )
+                }
+                disabled={sendMutation.isPending}
+              >
                 <Send className="h-3.5 w-3.5 mr-1.5" /> Send now
               </Button>
-            )}
-            {(inv.status === "Sent" || inv.status === "Opened") && (
-              <Button size="sm" className="btn-premium rounded-xl" onClick={() => { resendInvitation(inv.id); toast.success("Reminder sent"); }}>
+            ) : null}
+            {(invitation.status === "Sent" || invitation.status === "Opened") && canModify ? (
+              <Button
+                size="sm"
+                className="btn-premium rounded-xl"
+                onClick={() =>
+                  void runAction(
+                    () => resendMutation.mutateAsync(invitation.id),
+                    "Reminder sent",
+                    "We couldn't resend this invitation.",
+                  )
+                }
+                disabled={resendMutation.isPending}
+              >
                 <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Send reminder
               </Button>
-            )}
-            {inv.status === "Expired" && (
-              <Button size="sm" className="btn-premium rounded-xl" onClick={() => { resendInvitation(inv.id); toast.success("Invitation re-sent"); }}>
-                <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Resend
-              </Button>
-            )}
-            {(inv.status === "Sent" || inv.status === "Opened" || inv.status === "Draft") && (
+            ) : null}
+            {(invitation.status === "Sent" ||
+              invitation.status === "Opened" ||
+              invitation.status === "Draft") &&
+            canModify ? (
               <AlertDialog open={cancelOpen} onOpenChange={setCancelOpen}>
                 <AlertDialogTrigger asChild>
-                  <Button variant="ghost" size="sm" className="rounded-xl text-destructive hover:text-destructive">
-                    <Ban className="h-3.5 w-3.5 mr-1.5" /> {inv.status === "Draft" ? "Delete draft" : "Cancel"}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="rounded-xl text-destructive hover:text-destructive"
+                  >
+                    <Ban className="h-3.5 w-3.5 mr-1.5" />{" "}
+                    {invitation.status === "Draft" ? "Delete draft" : "Cancel"}
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent className="rounded-2xl">
                   <AlertDialogHeader>
-                    <AlertDialogTitle>{inv.status === "Draft" ? "Delete draft?" : "Cancel invitation?"}</AlertDialogTitle>
+                    <AlertDialogTitle>
+                      {invitation.status === "Draft" ? "Delete draft?" : "Cancel invitation?"}
+                    </AlertDialogTitle>
                     <AlertDialogDescription>
-                      {inv.status === "Draft"
+                      {invitation.status === "Draft"
                         ? "This draft will be permanently removed. This cannot be undone."
                         : "The candidate can no longer accept this invitation. You can send a new invitation anytime."}
                     </AlertDialogDescription>
@@ -100,55 +224,106 @@ function InvitationDetailPage() {
                     <AlertDialogAction
                       className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90"
                       onClick={() => {
-                        if (inv.status === "Draft") { deleteInvitationDraft(inv.id); toast.success("Draft deleted"); nav({ to: "/app/invitations" }); }
-                        else { cancelInvitation(inv.id); toast.success("Invitation cancelled"); }
+                        if (invitation.status === "Draft") {
+                          void (async () => {
+                            await runAction(
+                              () => deleteMutation.mutateAsync(invitation.id),
+                              "Draft deleted",
+                              "We couldn't delete this draft.",
+                            );
+                            navigate({ to: "/app/invitations" });
+                          })();
+                          return;
+                        }
+                        void runAction(
+                          () => cancelMutation.mutateAsync(invitation.id),
+                          "Invitation cancelled",
+                          "We couldn't cancel this invitation.",
+                        );
                       }}
                     >
-                      {inv.status === "Draft" ? "Delete" : "Cancel invitation"}
+                      {invitation.status === "Draft" ? "Delete" : "Cancel invitation"}
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
-            )}
+            ) : null}
           </div>
         }
       />
+      {!canInvite ? (
+        <PermissionDenied
+          className="mb-4"
+          message="Only users with invite permission can create or send Trust Invitations."
+        />
+      ) : null}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <div className="space-y-6 min-w-0">
           <SectionCard title="Candidate details">
             <div className="p-5 grid gap-4 sm:grid-cols-2 text-sm">
-              <Info icon={User} label="Full name" value={inv.candidateName} />
-              <Info icon={Mail} label="Email" value={inv.candidateEmail} />
-              {inv.candidatePhone && <Info icon={User} label="Phone" value={inv.candidatePhone} />}
-              <Info icon={Building2} label="Department" value={inv.department ?? "—"} />
-              <Info icon={FileEdit} label="Purpose" value={inv.purpose} />
-              <Info icon={ShieldCheck} label="Internal reference" value={inv.internalReference ?? "—"} />
-              <Info icon={Timer} label="Sent by" value={`${inv.sentBy}${inv.sentAt ? " · " + format(new Date(inv.sentAt), "MMM d, yyyy · h:mm a") : ""}`} />
-              <Info icon={Timer} label="Expires" value={format(new Date(inv.expiresAt), "MMM d, yyyy")} />
+              <Info icon={User} label="Full name" value={invitation.candidateName} />
+              <Info icon={Mail} label="Email" value={invitation.candidateEmail} />
+              {invitation.candidatePhone ? (
+                <Info icon={User} label="Phone" value={invitation.candidatePhone} />
+              ) : null}
+              <Info icon={FileEdit} label="Purpose" value={invitation.purpose ?? "—"} />
+              <Info icon={Timer} label="Created by" value={invitation.createdByName} />
+              <Info
+                icon={Timer}
+                label="Created"
+                value={format(new Date(invitation.createdAt), "MMM d, yyyy · h:mm a")}
+              />
+              {invitation.sentAt ? (
+                <Info
+                  icon={Timer}
+                  label="Sent"
+                  value={format(new Date(invitation.sentAt), "MMM d, yyyy · h:mm a")}
+                />
+              ) : null}
+              <Info
+                icon={Timer}
+                label="Expires"
+                value={format(new Date(invitation.expiresAt), "MMM d, yyyy")}
+              />
             </div>
           </SectionCard>
 
-          <SectionCard title="Requested verifications" description="Kairo will ask the candidate to consent to each of these.">
+          <SectionCard
+            title="Requested verifications"
+            description="Kairo will ask the candidate to consent to each of these."
+          >
             <div className="p-5 flex flex-wrap gap-2">
-              {inv.requestedVerifications.map((t) => (
-                <Badge key={t} variant="outline" className="rounded-full px-3 py-1 text-xs font-normal">{t}</Badge>
+              {formatVerificationList(invitation.requestedVerifications).map((label) => (
+                <Badge
+                  key={label}
+                  variant="outline"
+                  className="rounded-full px-3 py-1 text-xs font-normal"
+                >
+                  {label}
+                </Badge>
               ))}
             </div>
           </SectionCard>
 
-          {inv.message && (
+          {invitation.message ? (
             <SectionCard title="Message to candidate">
-              <div className="p-5 text-sm text-muted-foreground italic">"{inv.message}"</div>
+              <div className="p-5 text-sm text-muted-foreground italic">"{invitation.message}"</div>
             </SectionCard>
-          )}
+          ) : null}
 
-          <SectionCard title="Consent notice" description="What the candidate sees before accepting.">
+          <SectionCard
+            title="Consent notice"
+            description="What the candidate sees before accepting."
+          >
             <div className="p-5">
               <div className="rounded-xl border border-border/60 bg-foreground/[0.02] p-4 text-sm text-muted-foreground flex gap-3">
                 <ShieldCheck className="h-4 w-4 text-primary shrink-0 mt-0.5" />
                 <div>
-                  {inv.sentBy} has requested to verify {inv.requestedVerifications.length} categories on your Kairo Trust Passport. You control what to share. You can decline or withdraw consent at any time.
+                  {invitation.createdByName} has requested to verify{" "}
+                  {invitation.requestedVerifications.length} categories on your Kairo Trust
+                  Passport. You control what to share. You can decline or withdraw consent at any
+                  time.
                 </div>
               </div>
             </div>
@@ -156,18 +331,29 @@ function InvitationDetailPage() {
 
           <SectionCard title="Activity">
             <ol className="p-5 space-y-4">
-              {[...inv.activity].reverse().map((ev) => (
-                <li key={ev.id} className="flex gap-3 text-sm">
-                  <div className="h-7 w-7 rounded-full bg-foreground/[0.06] border border-border/60 flex items-center justify-center shrink-0">
-                    <EventIcon kind={ev.kind} />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="font-medium">{ev.label}</div>
-                    <div className="text-[11px] text-muted-foreground">{ev.actor} · {formatDistanceToNow(new Date(ev.at), { addSuffix: true })}</div>
-                    {ev.note && <div className="mt-1 text-xs text-muted-foreground">{ev.note}</div>}
-                  </div>
+              {invitation.timeline.length === 0 ? (
+                <li className="text-sm text-muted-foreground">
+                  No backend activity has been recorded for this invitation yet.
                 </li>
-              ))}
+              ) : (
+                invitation.timeline.map((event) => (
+                  <li key={event.id} className="flex gap-3 text-sm">
+                    <div className="h-7 w-7 rounded-full bg-foreground/[0.06] border border-border/60 flex items-center justify-center shrink-0">
+                      <EventIcon kind={event.kind} />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="font-medium">{event.label}</div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {event.actor} ·{" "}
+                        {formatDistanceToNow(new Date(event.at), { addSuffix: true })}
+                      </div>
+                      {event.note ? (
+                        <div className="mt-1 text-xs text-muted-foreground">{event.note}</div>
+                      ) : null}
+                    </div>
+                  </li>
+                ))
+              )}
             </ol>
           </SectionCard>
         </div>
@@ -177,38 +363,57 @@ function InvitationDetailPage() {
             <div className="p-5 text-sm space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Status</span>
-                <InvitationPill value={inv.status} />
+                <InvitationPill value={invitation.status} />
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Delivery</span>
-                <span>{inv.deliveryStatus}</span>
+                <span>{invitation.deliveryLabel}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Expires</span>
-                <span>{formatDistanceToNow(new Date(inv.expiresAt), { addSuffix: true })}</span>
+                <span>
+                  {formatDistanceToNow(new Date(invitation.expiresAt), { addSuffix: true })}
+                </span>
               </div>
-              {inv.personId && (
-                <div className="pt-2 border-t border-border/60">
-                  <Link to="/app/people/$id" params={{ id: inv.personId }} className="text-sm text-primary hover:underline inline-flex items-center gap-1">
-                    View person profile <ArrowUpRight className="h-3 w-3" />
-                  </Link>
+              {invitation.acceptedAt ? (
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Accepted</span>
+                  <span>{format(new Date(invitation.acceptedAt), "MMM d, yyyy")}</span>
                 </div>
-              )}
-              {inv.linkedRequestId && (
-                <div className="text-[11px] text-muted-foreground">
-                  Verification progress is tracked on this invitation.
+              ) : null}
+              {invitation.cancelledAt ? (
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Cancelled</span>
+                  <span>{format(new Date(invitation.cancelledAt), "MMM d, yyyy")}</span>
                 </div>
-              )}
-
+              ) : null}
+              {invitation.relatedVerificationRequestPublicId ? (
+                <div className="pt-2 border-t border-border/60 text-[11px] text-muted-foreground">
+                  Related verification request: {invitation.relatedVerificationRequestPublicId}
+                </div>
+              ) : null}
+              {invitation.status === "Expired" ? (
+                <div className="pt-2 border-t border-border/60 text-[11px] text-muted-foreground">
+                  Expired invitations can no longer be resent. Create a new invitation from the list
+                  page if you still need consent.
+                </div>
+              ) : null}
             </div>
           </SectionCard>
 
           <SectionCard title="Invitation link">
             <div className="p-5 space-y-2">
               <div className="rounded-lg border border-border/60 bg-foreground/[0.02] p-2.5 text-xs break-all text-muted-foreground">
-                {invitationLink}
+                {invitation.invitationUrl ??
+                  "The backend did not return a canonical invitation link."}
               </div>
-              <Button variant="outline" size="sm" className="rounded-xl w-full" onClick={copyLink}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-xl w-full"
+                onClick={() => void copyLink()}
+                disabled={!invitation.invitationUrl}
+              >
                 <Copy className="h-3.5 w-3.5 mr-1.5" /> Copy link
               </Button>
             </div>
@@ -219,7 +424,15 @@ function InvitationDetailPage() {
   );
 }
 
-function Info({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
+function Info({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: React.ElementType;
+  label: string;
+  value: string;
+}) {
   return (
     <div className="flex items-start gap-3">
       <div className="h-8 w-8 rounded-lg bg-foreground/[0.04] flex items-center justify-center shrink-0">
@@ -234,15 +447,15 @@ function Info({ icon: Icon, label, value }: { icon: React.ElementType; label: st
 }
 
 function EventIcon({ kind }: { kind: string }) {
-  const cls = "h-3.5 w-3.5 text-muted-foreground";
-  if (kind === "sent") return <Send className={cls} />;
-  if (kind === "delivered") return <MailCheck className={cls} />;
-  if (kind === "opened") return <MailOpen className={cls} />;
-  if (kind === "reminder") return <RefreshCw className={cls} />;
-  if (kind === "accepted") return <CheckCircle2 className={cls} />;
-  if (kind === "consent") return <ShieldCheck className={cls} />;
-  if (kind === "request_created") return <MessageSquare className={cls} />;
-  if (kind === "expired") return <Timer className={cls} />;
-  if (kind === "cancelled") return <XCircle className={cls} />;
-  return <FileEdit className={cls} />;
+  const iconClassName = "h-3.5 w-3.5 text-muted-foreground";
+  if (kind === "sent") return <Send className={iconClassName} />;
+  if (kind === "opened") return <MailOpen className={iconClassName} />;
+  if (kind === "resent") return <RefreshCw className={iconClassName} />;
+  if (kind === "accepted") return <CheckCircle2 className={iconClassName} />;
+  if (kind === "expired") return <Timer className={iconClassName} />;
+  if (kind === "cancelled") return <XCircle className={iconClassName} />;
+  if (kind === "delivery_failed") return <AlertTriangle className={iconClassName} />;
+  if (kind === "deleted") return <Ban className={iconClassName} />;
+  if (kind === "created") return <FileEdit className={iconClassName} />;
+  return <MessageSquare className={iconClassName} />;
 }
