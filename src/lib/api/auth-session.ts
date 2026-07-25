@@ -13,6 +13,13 @@ export interface AuthSession {
   expires_at: number;
 }
 
+export interface AuthTokenBundle {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  expires_in: number;
+}
+
 interface StoredAuthState {
   session: AuthSession | null;
   user: AuthUser | null;
@@ -63,7 +70,20 @@ export function readAuthState() {
   return readStoredState();
 }
 
-export function storeAuthSession(session: AuthSession, user: AuthUser | null, reason: AuthStateChangeReason = "updated") {
+export function toAuthSession(tokens: AuthTokenBundle): AuthSession {
+  return {
+    access_token: tokens.access_token,
+    refresh_token: tokens.refresh_token,
+    token_type: tokens.token_type,
+    expires_at: Date.now() + tokens.expires_in * 1000,
+  };
+}
+
+export function storeAuthSession(
+  session: AuthSession,
+  user: AuthUser | null,
+  reason: AuthStateChangeReason = "updated",
+) {
   writeStoredState({ session, user }, reason);
 }
 

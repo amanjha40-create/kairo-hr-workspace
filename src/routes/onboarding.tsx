@@ -2,11 +2,17 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/lib/auth-context";
-import { ArrowRight, ShieldCheck, Workflow, Layers, Sparkles, Loader2 } from "lucide-react";
+import { ArrowRight, Layers, Loader2, ShieldCheck, Sparkles, Workflow } from "lucide-react";
 import { toast } from "sonner";
 import { ProfileTypeStep, type ProfileType } from "@/components/onboarding/ProfileTypeStep";
+import { useAuth } from "@/lib/auth-context";
+import { ApiError } from "@/lib/api/client";
+import { completeOrganizationOnboarding } from "@/lib/api/organization-signup";
+import {
+  clearOrganizationSignupDraft,
+  deriveDomainFromWorkEmail,
+  readOrganizationSignupDraft,
+} from "@/lib/organization-signup-draft";
 
 export const Route = createFileRoute("/onboarding")({
   head: () => ({
@@ -51,16 +57,15 @@ const steps = [
 
 function OnboardingPage() {
   const navigate = useNavigate();
-  const { user, loading } = useAuth();
+  const { session, loading } = useAuth();
   const [i, setI] = useState(0);
   const [finishing, setFinishing] = useState(false);
   const [profileType, setProfileType] = useState<ProfileType | null>(null);
 
   useEffect(() => {
-    if (!loading && !user) navigate({ to: "/login" });
-  }, [user, loading, navigate]);
+    if (!loading && !session) navigate({ to: "/login" });
+  }, [session, loading, navigate]);
 
-  // Step 0 = ProfileTypeStep (full width); steps 1..N = existing storytelling steps
   const totalSteps = steps.length + 1;
   const isProfileStep = i === 0;
   const storyIndex = i - 1;
@@ -69,32 +74,53 @@ function OnboardingPage() {
   const canContinue = isProfileStep ? !!profileType : true;
 
   async function finish() {
-    if (!user) return;
     setFinishing(true);
-    const { error } = await supabase
-      .from("profiles")
-      .update({ onboarding_completed: true })
-      .eq("id", user.id);
-    setFinishing(false);
-    if (error) {
-      toast.error("Could not complete onboarding");
-      return;
+    try {
+      const draft = readOrganizationSignupDraft();
+      if (draft?.stage === "complete_onboarding") {
+        await completeOrganizationOnboarding({
+          name: draft.companyName.trim() || "New organization",
+          organization_type: "employer",
+          work_email: draft.workEmail.trim() || undefined,
+          domain: deriveDomainFromWorkEmail(draft.workEmail),
+          organization_size: draft.companySize || undefined,
+          hiring_volume: draft.hiringVolume || undefined,
+        });
+        clearOrganizationSignupDraft();
+      }
+      navigate({ to: "/app" });
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 409) {
+        clearOrganizationSignupDraft();
+        navigate({ to: "/app" });
+        return;
+      }
+      const message = error instanceof Error ? error.message : "Could not complete onboarding";
+      toast.error(message);
+    } finally {
+      setFinishing(false);
     }
-    navigate({ to: "/app" });
   }
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <header className="h-16 flex items-center justify-between px-6 border-b border-border/50">
         <Logo className="h-5" />
-        <button onClick={finish} className="text-xs text-muted-foreground hover:text-foreground">Skip</button>
+        <button
+          onClick={() => void finish()}
+          className="text-xs text-muted-foreground hover:text-foreground"
+        >
+          Skip
+        </button>
       </header>
 
-      {/* progress */}
       <div className="px-6 pt-6 max-w-5xl mx-auto w-full">
         <div className="flex items-center gap-1.5" aria-label="Progress">
           {Array.from({ length: totalSteps }).map((_, idx) => (
-            <div key={idx} className={`h-1 flex-1 rounded-full transition-all duration-300 ${idx <= i ? "bg-foreground" : "bg-foreground/10"}`} />
+            <div
+              key={idx}
+              className={`h-1 flex-1 rounded-full transition-all duration-300 ${idx <= i ? "bg-foreground" : "bg-foreground/10"}`}
+            />
           ))}
         </div>
       </div>
@@ -128,27 +154,49 @@ function OnboardingPage() {
                 <h1 className="text-[34px] sm:text-[42px] font-semibold tracking-tight leading-[1.05] text-foreground">
                   {step.title}
                 </h1>
-                <p className="mt-4 text-base text-muted-foreground max-w-md leading-relaxed">{step.body}</p>
+                <p className="mt-4 text-base text-muted-foreground max-w-md leading-relaxed">
+                  {step.body}
+                </p>
 
                 <div className="mt-10 flex items-center gap-3">
-                  <Button variant="ghost" onClick={() => setI(i - 1)} className="rounded-xl">Back</Button>
+                  <Button variant="ghost" onClick={() => setI(i - 1)} className="rounded-xl">
+                    Back
+                  </Button>
                   {isLast ? (
-                    <Button onClick={finish} disabled={finishing} className="btn-premium rounded-xl h-11 px-5">
-                      {finishing ? <Loader2 className="h-4 w-4 animate-spin" /> : <>Enter dashboard <ArrowRight className="ml-1.5 h-4 w-4" /></>}
+                    <Button
+                      onClick={() => void finish()}
+                      disabled={finishing}
+                      className="btn-premium rounded-xl h-11 px-5"
+                    >
+                      {finishing ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          Enter dashboard <ArrowRight className="ml-1.5 h-4 w-4" />
+                        </>
+                      )}
                     </Button>
                   ) : (
-                    <Button onClick={() => setI(i + 1)} className="btn-premium rounded-xl h-11 px-5">
+                    <Button
+                      onClick={() => setI(i + 1)}
+                      className="btn-premium rounded-xl h-11 px-5"
+                    >
                       Continue <ArrowRight className="ml-1.5 h-4 w-4" />
                     </Button>
                   )}
                 </div>
-                <div className="mt-6 text-xs text-muted-foreground">Step {i + 1} of {totalSteps}</div>
+                <div className="mt-6 text-xs text-muted-foreground">
+                  Step {i + 1} of {totalSteps}
+                </div>
               </div>
             </div>
           </main>
 
           <aside className="hidden lg:flex items-center justify-center bg-gradient-to-br from-[hsl(var(--primary)/0.06)] via-background to-background border-l border-border/50 p-12">
-            <div key={`v-${i}`} className="w-full max-w-md animate-in fade-in zoom-in-95 duration-500">
+            <div
+              key={`v-${i}`}
+              className="w-full max-w-md animate-in fade-in zoom-in-95 duration-500"
+            >
               {step.visual}
             </div>
           </aside>
@@ -158,9 +206,14 @@ function OnboardingPage() {
   );
 }
 
-/* ------- Visuals (lightweight SVG/CSS) ------- */
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <div className={`rounded-2xl border border-border/70 bg-background/80 backdrop-blur p-4 shadow-sm ${className}`}>{children}</div>;
+  return (
+    <div
+      className={`rounded-2xl border border-border/70 bg-background/80 backdrop-blur p-4 shadow-sm ${className}`}
+    >
+      {children}
+    </div>
+  );
 }
 
 function FragmentedVisual() {
@@ -183,9 +236,13 @@ function PortableTrustVisual() {
       <div className="text-xs uppercase tracking-wider text-muted-foreground">Verified profile</div>
       <div className="mt-2 text-lg font-semibold">Priya R. · Senior Engineer</div>
       <div className="mt-4 space-y-2">
-        {["Employment · Verified at source", "Education · Verified at source", "Identity · KYC complete"].map((l) => (
-          <div key={l} className="flex items-center justify-between text-sm">
-            <span>{l}</span>
+        {[
+          "Employment · Verified at source",
+          "Education · Verified at source",
+          "Identity · KYC complete",
+        ].map((label) => (
+          <div key={label} className="flex items-center justify-between text-sm">
+            <span>{label}</span>
             <span className="text-emerald-600 text-xs font-medium">✓ Verified</span>
           </div>
         ))}
@@ -204,20 +261,20 @@ function DashboardVisual() {
     <Card className="p-5">
       <div className="grid grid-cols-3 gap-3">
         {[
-          { l: "Pending", v: "12" },
-          { l: "Verified", v: "284" },
-          { l: "Avg TAT", v: "2.1m" },
-        ].map((s) => (
-          <div key={s.l} className="rounded-xl bg-foreground/[0.03] p-3">
-            <div className="text-[10px] uppercase text-muted-foreground">{s.l}</div>
-            <div className="text-lg font-semibold mt-0.5">{s.v}</div>
+          { label: "Pending", value: "12" },
+          { label: "Verified", value: "284" },
+          { label: "Avg TAT", value: "2.1m" },
+        ].map((stat) => (
+          <div key={stat.label} className="rounded-xl bg-foreground/[0.03] p-3">
+            <div className="text-[10px] uppercase text-muted-foreground">{stat.label}</div>
+            <div className="text-lg font-semibold mt-0.5">{stat.value}</div>
           </div>
         ))}
       </div>
       <div className="mt-4 space-y-2">
-        {[80, 56, 42, 30].map((w, i) => (
-          <div key={i} className="h-2 rounded-full bg-foreground/[0.05] overflow-hidden">
-            <div className="h-full bg-foreground/70" style={{ width: `${w}%` }} />
+        {[80, 56, 42, 30].map((width, index) => (
+          <div key={index} className="h-2 rounded-full bg-foreground/[0.05] overflow-hidden">
+            <div className="h-full bg-foreground/70" style={{ width: `${width}%` }} />
           </div>
         ))}
       </div>
