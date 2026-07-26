@@ -1,4 +1,9 @@
-import { clearStoredAuthState, readAuthState, storeAuthSession, type AuthSession } from "@/lib/api/auth-session";
+import {
+  clearStoredAuthState,
+  readAuthState,
+  storeAuthSession,
+  type AuthSession,
+} from "@/lib/api/auth-session";
 
 export interface ApiErrorDetail {
   [key: string]: unknown;
@@ -45,7 +50,20 @@ interface RequestOptions extends Omit<RequestInit, "body" | "headers"> {
 let refreshPromise: Promise<AuthSession | null> | null = null;
 
 function getApiBaseUrl() {
-  return (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000").replace(/\/$/, "");
+  const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim().replace(/\/$/, "");
+
+  if (configuredBaseUrl) {
+    if (import.meta.env.PROD && !configuredBaseUrl.startsWith("https://")) {
+      throw new Error("VITE_API_BASE_URL must use an HTTPS origin in production.");
+    }
+    return configuredBaseUrl;
+  }
+
+  if (import.meta.env.PROD) {
+    throw new Error("VITE_API_BASE_URL is required in production.");
+  }
+
+  return "http://localhost:8000";
 }
 
 function buildUrl(path: string) {
@@ -61,7 +79,12 @@ function withAuthHeader(headers: Headers, accessToken: string) {
 
 function buildHeaders(body: RequestOptions["body"], headers?: HeadersInit) {
   const resolved = new Headers(headers);
-  if (body && !(body instanceof FormData) && !(body instanceof Blob) && !(body instanceof URLSearchParams)) {
+  if (
+    body &&
+    !(body instanceof FormData) &&
+    !(body instanceof Blob) &&
+    !(body instanceof URLSearchParams)
+  ) {
     resolved.set("Content-Type", "application/json");
   }
   resolved.set("Accept", "application/json");
@@ -69,7 +92,13 @@ function buildHeaders(body: RequestOptions["body"], headers?: HeadersInit) {
 }
 
 function serializeBody(body: RequestOptions["body"]) {
-  if (body == null || body instanceof FormData || body instanceof Blob || body instanceof URLSearchParams || typeof body === "string") {
+  if (
+    body == null ||
+    body instanceof FormData ||
+    body instanceof Blob ||
+    body instanceof URLSearchParams ||
+    typeof body === "string"
+  ) {
     return body;
   }
   return JSON.stringify(body);
@@ -146,7 +175,11 @@ async function refreshAccessToken() {
   return refreshPromise;
 }
 
-export async function apiRequest<T>(path: string, options: RequestOptions = {}, retried = false): Promise<T> {
+export async function apiRequest<T>(
+  path: string,
+  options: RequestOptions = {},
+  retried = false,
+): Promise<T> {
   const { auth = true, body, headers, ...init } = options;
   const authState = readAuthState();
   const requestHeaders = buildHeaders(body, headers);
