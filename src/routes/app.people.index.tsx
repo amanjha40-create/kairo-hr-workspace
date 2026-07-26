@@ -32,7 +32,7 @@ import type {
   Relationship,
   SharedPassportStatus,
   WorkspaceVerificationStatus,
-} from "@/lib/workspace-data";
+} from "@/lib/workspace-types";
 import {
   canOpenSharedPassport,
   getCreatedAfterFilter,

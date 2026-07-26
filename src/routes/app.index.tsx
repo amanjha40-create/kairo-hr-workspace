@@ -1,61 +1,393 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { fallback, zodValidator } from "@tanstack/zod-adapter";
-import { z } from "zod";
-import { PageHeader, SectionCard, EmptyState, TableSkeleton } from "@/components/app/primitives";
-import { Button } from "@/components/ui/button";
-import { useDashboard } from "@/lib/dashboard-context";
-import { useAccess } from "@/lib/access-context";
-import { VerificationPill, InvitationPill } from "@/components/app/workspace-pills";
+import { formatDistanceToNow } from "date-fns";
+import {
+  AlertTriangle,
+  ArrowRight,
+  CheckCircle2,
+  EyeOff,
+  FileText,
+  Hourglass,
+  Loader2,
+  MailCheck,
+  MailOpen,
+  MailPlus,
+  MessageCircleWarning,
+  Plus,
+  Share2,
+  ShieldCheck,
+  ShieldOff,
+  Sparkles,
+  UserPlus,
+} from "lucide-react";
+import { useMemo } from "react";
 import { PermissionDenied } from "@/components/app/access/PermissionDenied";
-import { useTrustInvitationSummaryQuery } from "@/lib/queries/trust-invitations";
-import { useVerificationRequestListQuery } from "@/lib/queries/verification-requests";
-import { useOrganizationPeopleDirectoryQuery } from "@/lib/queries/organization-people";
+import { EmptyState, PageHeader, SectionCard, TableSkeleton } from "@/components/app/primitives";
+import { Button } from "@/components/ui/button";
+import { useAccess } from "@/lib/access-context";
+import { useDashboard } from "@/lib/dashboard-context";
 import {
   canReviewVerification,
   getVerificationErrorMessage,
-  type VerificationInboxStatus,
+  type EmploymentVerificationRecord,
 } from "@/lib/employment-verifications";
-import { getPeopleOverviewCounts } from "@/lib/organization-people";
 import {
-  Plus,
-  MailPlus,
-  ShieldCheck,
-  Hourglass,
-  Loader2,
-  CheckCircle2,
-  ArrowRight,
-  UserPlus,
-  FileText,
-  Share2,
-  MessageCircleWarning,
-  ShieldOff,
-  AlertTriangle,
-  MailOpen,
-  MailCheck,
-  Sparkles,
-  EyeOff,
-} from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
-
-const overviewSearch = z.object({ empty: z.string().optional() });
+  getPeopleOverviewCounts,
+  getOrganizationPeopleErrorMessage,
+  type PeopleDirectoryItem,
+} from "@/lib/organization-people";
+import { useOrganizationPeopleDirectoryQuery } from "@/lib/queries/organization-people";
+import {
+  useTrustInvitationListQuery,
+  useTrustInvitationSummaryQuery,
+} from "@/lib/queries/trust-invitations";
+import { useVerificationRequestListQuery } from "@/lib/queries/verification-requests";
+import { type TrustInvitationRecord } from "@/lib/trust-invitations";
 
 export const Route = createFileRoute("/app/")({
-  validateSearch: zodValidator(overviewSearch),
   component: Overview,
 });
 
+const EMPTY_INVITATIONS: TrustInvitationRecord[] = [];
+const EMPTY_VERIFICATIONS: EmploymentVerificationRecord[] = [];
+const EMPTY_PEOPLE: PeopleDirectoryItem[] = [];
+
+type OverviewAttentionItem = {
+  id: string;
+  personName: string;
+  personPublicId: string;
+  reason: string;
+  status: string;
+  at: string;
+  actionLabel: string;
+};
+
+type OverviewActivityItem = {
+  id: string;
+  subjectName: string;
+  label: string;
+  actor: string;
+  at: string;
+  kind: string;
+  to: "/app/invitations/$id" | "/app/verifications/$id";
+  params: { id: string };
+};
+
+function sortByNewest<T extends { at: string }>(items: T[]) {
+  return [...items].sort(
+    (left, right) => new Date(right.at).getTime() - new Date(left.at).getTime(),
+  );
+}
+
+function isCurrentMonth(value: string) {
+  const date = new Date(value);
+  const now = new Date();
+  return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
+}
+
+function buildOverviewAttentionItems(people: PeopleDirectoryItem[]): OverviewAttentionItem[] {
+  const items: OverviewAttentionItem[] = [];
+
+  for (const person of people) {
+    const at = person.lastActivityAt ?? person.addedAt;
+
+    if (person.verificationStatus === "Clarification Required") {
+      items.push({
+        id: `${person.publicId}-clarification`,
+        personName: person.name,
+        personPublicId: person.publicId,
+        reason: "Clarification required for shared verification",
+        status: person.verificationStatus,
+        at,
+        actionLabel: "Review details",
+      });
+      continue;
+    }
+
+    if (person.verificationStatus === "Waiting for Candidate") {
+      items.push({
+        id: `${person.publicId}-waiting`,
+        personName: person.name,
+        personPublicId: person.publicId,
+        reason: "Candidate information is still pending",
+        status: person.verificationStatus,
+        at,
+        actionLabel: "Open person",
+      });
+      continue;
+    }
+
+    if (person.invitationStatus === "Sent" || person.invitationStatus === "Opened") {
+      items.push({
+        id: `${person.publicId}-invitation`,
+        personName: person.name,
+        personPublicId: person.publicId,
+        reason: "Trust invitation still needs candidate acceptance",
+        status: person.invitationStatus,
+        at,
+        actionLabel: "Review invitation state",
+      });
+      continue;
+    }
+
+    if (person.passportStatus === "Expiring Soon") {
+      items.push({
+        id: `${person.publicId}-passport-expiring`,
+        personName: person.name,
+        personPublicId: person.publicId,
+        reason: "Shared Trust Passport access expires soon",
+        status: person.passportStatus,
+        at,
+        actionLabel: "Review passport access",
+      });
+      continue;
+    }
+
+    if (person.passportStatus === "Expired") {
+      items.push({
+        id: `${person.publicId}-passport-expired`,
+        personName: person.name,
+        personPublicId: person.publicId,
+        reason: "Shared Trust Passport access expired",
+        status: person.passportStatus,
+        at,
+        actionLabel: "Open person",
+      });
+      continue;
+    }
+
+    if (person.passportStatus === "Access Revoked") {
+      items.push({
+        id: `${person.publicId}-passport-revoked`,
+        personName: person.name,
+        personPublicId: person.publicId,
+        reason: "Shared Trust Passport access was revoked",
+        status: person.passportStatus,
+        at,
+        actionLabel: "Open person",
+      });
+      continue;
+    }
+
+    if (person.verificationStatus === "Unable to Verify") {
+      items.push({
+        id: `${person.publicId}-unable`,
+        personName: person.name,
+        personPublicId: person.publicId,
+        reason: "Verification could not be completed",
+        status: person.verificationStatus,
+        at,
+        actionLabel: "Review details",
+      });
+    }
+  }
+
+  return sortByNewest(items).slice(0, 8);
+}
+
+function buildInvitationActivityItems(
+  invitations: TrustInvitationRecord[],
+): OverviewActivityItem[] {
+  return invitations.flatMap((invitation) => {
+    if (invitation.status === "Accepted" && invitation.acceptedAt) {
+      return [
+        {
+          id: `${invitation.id}-accepted`,
+          subjectName: invitation.candidateName,
+          label: "accepted a trust invitation",
+          actor: invitation.candidateName,
+          at: invitation.acceptedAt,
+          kind: "accepted",
+          to: "/app/invitations/$id",
+          params: { id: invitation.id },
+        },
+      ];
+    }
+
+    if (invitation.status === "Opened" && invitation.openedAt) {
+      return [
+        {
+          id: `${invitation.id}-opened`,
+          subjectName: invitation.candidateName,
+          label: "opened a trust invitation",
+          actor: invitation.candidateName,
+          at: invitation.openedAt,
+          kind: "opened",
+          to: "/app/invitations/$id",
+          params: { id: invitation.id },
+        },
+      ];
+    }
+
+    if (invitation.status === "Cancelled" && invitation.cancelledAt) {
+      return [
+        {
+          id: `${invitation.id}-cancelled`,
+          subjectName: invitation.candidateName,
+          label: "had a trust invitation cancelled",
+          actor: invitation.createdByName,
+          at: invitation.cancelledAt,
+          kind: "revoked",
+          to: "/app/invitations/$id",
+          params: { id: invitation.id },
+        },
+      ];
+    }
+
+    if (invitation.status === "Expired") {
+      return [
+        {
+          id: `${invitation.id}-expired`,
+          subjectName: invitation.candidateName,
+          label: "had a trust invitation expire",
+          actor: "System",
+          at: invitation.updatedAt,
+          kind: "expired",
+          to: "/app/invitations/$id",
+          params: { id: invitation.id },
+        },
+      ];
+    }
+
+    if (invitation.status === "Sent") {
+      return [
+        {
+          id: `${invitation.id}-sent`,
+          subjectName: invitation.candidateName,
+          label: "was sent a trust invitation",
+          actor: invitation.createdByName,
+          at: invitation.sentAt ?? invitation.updatedAt,
+          kind: "invited",
+          to: "/app/invitations/$id",
+          params: { id: invitation.id },
+        },
+      ];
+    }
+
+    return [];
+  });
+}
+
+function buildVerificationActivityItems(
+  verifications: EmploymentVerificationRecord[],
+): OverviewActivityItem[] {
+  return verifications.map((verification) => {
+    switch (verification.status) {
+      case "Clarification Requested":
+        return {
+          id: `${verification.id}-clarification`,
+          subjectName: verification.candidateName,
+          label: "needs verification clarification",
+          actor:
+            verification.assignedReviewer?.fullName ??
+            verification.assignedReviewer?.email ??
+            "Organization",
+          at: verification.updatedAt,
+          kind: "clarification-req",
+          to: "/app/verifications/$id",
+          params: { id: verification.id },
+        };
+      case "Confirmed":
+        return {
+          id: `${verification.id}-confirmed`,
+          subjectName: verification.candidateName,
+          label: "verification was completed",
+          actor:
+            verification.assignedReviewer?.fullName ??
+            verification.assignedReviewer?.email ??
+            "Organization",
+          at: verification.updatedAt,
+          kind: "completed",
+          to: "/app/verifications/$id",
+          params: { id: verification.id },
+        };
+      case "Rejected":
+        return {
+          id: `${verification.id}-rejected`,
+          subjectName: verification.candidateName,
+          label: "verification was rejected",
+          actor:
+            verification.assignedReviewer?.fullName ??
+            verification.assignedReviewer?.email ??
+            "Organization",
+          at: verification.updatedAt,
+          kind: "unable",
+          to: "/app/verifications/$id",
+          params: { id: verification.id },
+        };
+      case "Cancelled":
+        return {
+          id: `${verification.id}-cancelled`,
+          subjectName: verification.candidateName,
+          label: "verification was cancelled",
+          actor: "Organization",
+          at: verification.updatedAt,
+          kind: "revoked",
+          to: "/app/verifications/$id",
+          params: { id: verification.id },
+        };
+      case "Expired":
+        return {
+          id: `${verification.id}-expired`,
+          subjectName: verification.candidateName,
+          label: "verification request expired",
+          actor: "System",
+          at: verification.updatedAt,
+          kind: "expired",
+          to: "/app/verifications/$id",
+          params: { id: verification.id },
+        };
+      case "In Review":
+        return {
+          id: `${verification.id}-review`,
+          subjectName: verification.candidateName,
+          label: "verification moved into review",
+          actor:
+            verification.assignedReviewer?.fullName ??
+            verification.assignedReviewer?.email ??
+            "Organization",
+          at: verification.updatedAt,
+          kind: "request",
+          to: "/app/verifications/$id",
+          params: { id: verification.id },
+        };
+      default:
+        return {
+          id: `${verification.id}-new`,
+          subjectName: verification.candidateName,
+          label: "employment verification was received",
+          actor: verification.targetName ?? verification.organizationName ?? "Organization",
+          at: verification.receivedAt,
+          kind: "request",
+          to: "/app/verifications/$id",
+          params: { id: verification.id },
+        };
+    }
+  });
+}
+
 function Overview() {
-  const { requests, attention, setInviteOpen, emptyMode, setEmptyMode } = useDashboard();
+  const { setInviteOpen, emptyMode, setEmptyMode } = useDashboard();
   const { org, can } = useAccess();
   const canInvite = can("invite_candidate");
+
   const invitationSummaryQuery = useTrustInvitationSummaryQuery(org?.publicId);
+  const invitationListQuery = useTrustInvitationListQuery(org?.publicId, {
+    sort_by: "updated_at",
+    sort_order: "desc",
+    page_size: 50,
+    paginate: true,
+  });
   const verificationListQuery = useVerificationRequestListQuery(org?.publicId, {
     sort_by: "updated_at",
     sort_order: "desc",
+    page_size: 100,
+    paginate: true,
   });
-  const peopleSummaryQuery = useOrganizationPeopleDirectoryQuery(org?.publicId, {
-    page_size: 1,
+  const peopleDirectoryQuery = useOrganizationPeopleDirectoryQuery(org?.publicId, {
+    sort_by: "last_activity_at",
+    sort_order: "desc",
   });
+
   const invitationCounts = invitationSummaryQuery.data ?? {
     active: 0,
     awaiting: 0,
@@ -63,36 +395,63 @@ function Overview() {
     expiring: 0,
     draft: 0,
   };
-  const { empty } = Route.useSearch();
+  const invitationRows = invitationListQuery.data ?? EMPTY_INVITATIONS;
+  const verificationRows = verificationListQuery.data ?? EMPTY_VERIFICATIONS;
+  const peopleRows = peopleDirectoryQuery.data?.items ?? EMPTY_PEOPLE;
+
+  const peopleCounts = peopleDirectoryQuery.data
+    ? getPeopleOverviewCounts(peopleDirectoryQuery.data.summary)
+    : { totalPeople: 0, inVerification: 0 };
+
+  const attentionItems = useMemo(
+    () => (emptyMode ? [] : buildOverviewAttentionItems(peopleRows)),
+    [emptyMode, peopleRows],
+  );
+  const recentActivityItems = useMemo(() => {
+    if (emptyMode) return [];
+    const items: OverviewActivityItem[] = [
+      ...buildInvitationActivityItems(invitationRows),
+      ...buildVerificationActivityItems(verificationRows),
+    ];
+    return sortByNewest(items).slice(0, 10);
+  }, [emptyMode, invitationRows, verificationRows]);
+
   const hasInvitationData =
     invitationCounts.active +
       invitationCounts.accepted +
       invitationCounts.draft +
       invitationCounts.expiring >
     0;
-  const verificationRows = verificationListQuery.data ?? [];
   const hasVerificationData = verificationRows.length > 0;
-  const peopleCounts = peopleSummaryQuery.data
-    ? getPeopleOverviewCounts(peopleSummaryQuery.data.summary)
-    : { totalPeople: 0, inVerification: 0 };
   const isEmpty =
     emptyMode ||
     (!invitationSummaryQuery.isPending &&
       !verificationListQuery.isPending &&
-      !peopleSummaryQuery.isPending &&
-      !peopleSummaryQuery.error &&
+      !peopleDirectoryQuery.isPending &&
+      !invitationSummaryQuery.error &&
+      !verificationListQuery.error &&
+      !peopleDirectoryQuery.error &&
       peopleCounts.totalPeople === 0 &&
       !hasInvitationData &&
       !hasVerificationData);
 
-  const activeInvitations = invitationCounts.active;
-  const awaitingCandidate = invitationCounts.awaiting;
-  const inVerification = peopleCounts.inVerification;
-  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-  const completedThisMonth = requests.filter(
-    (r) => r.status === "Verified" && new Date(r.requestedAt) >= monthStart,
-  ).length;
-  const inboundOpen = verificationRows.filter((record) => canReviewVerification(record)).length;
+  const activeInvitations = invitationSummaryQuery.error ? "—" : invitationCounts.active;
+  const awaitingCandidate = invitationSummaryQuery.error ? "—" : invitationCounts.awaiting;
+  const inVerification = peopleDirectoryQuery.error ? "—" : peopleCounts.inVerification;
+  const completedThisMonth =
+    verificationListQuery.isPending && verificationListQuery.data == null
+      ? "—"
+      : verificationListQuery.error
+        ? "—"
+        : verificationRows.filter(
+            (record) => record.status === "Confirmed" && isCurrentMonth(record.updatedAt),
+          ).length;
+  const inboundOpen =
+    verificationListQuery.isPending && verificationListQuery.data == null
+      ? "—"
+      : verificationListQuery.error
+        ? "—"
+        : verificationRows.filter((record) => canReviewVerification(record)).length;
 
   const kpis = [
     {
@@ -102,16 +461,14 @@ function Overview() {
       icon: MailPlus,
       desc: "Awaiting candidate acceptance",
       to: "/app/invitations",
-      search: undefined,
     },
     {
       key: "inbound",
       label: "Employment Verifications",
-      value: verificationListQuery.isPending && !verificationListQuery.data ? "—" : inboundOpen,
+      value: inboundOpen,
       icon: ShieldCheck,
       desc: "Incoming from other organizations",
       to: "/app/verifications",
-      search: undefined,
     },
     {
       key: "awaiting",
@@ -120,7 +477,6 @@ function Overview() {
       icon: Hourglass,
       desc: "Needs candidate action",
       to: "/app/invitations",
-      search: undefined,
     },
     {
       key: "in-verif",
@@ -128,8 +484,7 @@ function Overview() {
       value: inVerification,
       icon: Loader2,
       desc: "Currently being processed",
-      to: "/app/invitations",
-      search: undefined,
+      to: "/app/people",
     },
     {
       key: "completed",
@@ -137,13 +492,11 @@ function Overview() {
       value: completedThisMonth,
       icon: CheckCircle2,
       desc: "Finalized this month",
-      to: "/app/invitations",
-      search: undefined,
+      to: "/app/verifications",
     },
   ] as const;
 
   const recentInbound = verificationRows.slice(0, 6);
-  void empty;
 
   return (
     <div>
@@ -211,11 +564,10 @@ function Overview() {
       ) : (
         <>
           <div className="grid gap-4 grid-cols-2 lg:grid-cols-5 mb-8">
-            {kpis.map(({ key, label, value, icon: Icon, desc, to, search }) => (
+            {kpis.map(({ key, label, value, icon: Icon, desc, to }) => (
               <Link
                 key={key}
                 to={to}
-                search={search as never}
                 className="group rounded-2xl border border-border/60 bg-background p-5 shadow-[var(--shadow-soft)] hover:shadow-md hover:-translate-y-0.5 transition-all"
               >
                 <div className="flex items-center justify-between">
@@ -240,7 +592,24 @@ function Overview() {
             description="Actionable items across invitations, requests and Trust Passports"
             className="mb-6"
           >
-            {attention.length === 0 ? (
+            {peopleDirectoryQuery.isPending && !peopleDirectoryQuery.data ? (
+              <TableSkeleton rows={4} />
+            ) : peopleDirectoryQuery.error ? (
+              <EmptyState
+                icon={AlertTriangle}
+                title="Attention items didn't load"
+                description={getOrganizationPeopleErrorMessage(
+                  peopleDirectoryQuery.error,
+                  "Please try again.",
+                )}
+                action={{
+                  label: "Retry",
+                  onClick: () => {
+                    void peopleDirectoryQuery.refetch();
+                  },
+                }}
+              />
+            ) : attentionItems.length === 0 ? (
               <EmptyState
                 icon={CheckCircle2}
                 title="Nothing needs your attention"
@@ -248,38 +617,37 @@ function Overview() {
               />
             ) : (
               <div className="divide-y divide-border/60">
-                {attention.map((a) => (
-                  <div key={a.id} className="px-5 py-4 flex flex-wrap items-start gap-3">
+                {attentionItems.map((item) => (
+                  <div key={item.id} className="px-5 py-4 flex flex-wrap items-start gap-3">
                     <div className="mt-0.5">
-                      <AttentionIcon reason={a.reason} />
+                      <AttentionIcon reason={item.reason} />
                     </div>
                     <div className="flex-1 min-w-[220px]">
-                      <div className="text-sm font-medium">{a.personName}</div>
-                      <div className="text-[13px] text-muted-foreground mt-0.5">{a.reason}</div>
+                      <div className="text-sm font-medium">{item.personName}</div>
+                      <div className="text-[13px] text-muted-foreground mt-0.5">{item.reason}</div>
                       <div className="text-[11px] text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
                         <span className="inline-flex items-center gap-1">
-                          <span className="h-1.5 w-1.5 rounded-full bg-current opacity-60" />{" "}
-                          {a.status}
+                          <span className="h-1.5 w-1.5 rounded-full bg-current opacity-60" />
+                          {item.status}
                         </span>
                         <span aria-hidden>·</span>
-                        <span>{formatDistanceToNow(new Date(a.at), { addSuffix: true })}</span>
+                        <span>{formatDistanceToNow(new Date(item.at), { addSuffix: true })}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <Link
                         to="/app/people/$id"
-                        params={{ id: a.personId }}
+                        params={{ id: item.personPublicId }}
                         className="text-xs font-medium hover:underline text-muted-foreground"
                       >
                         View person
                       </Link>
                       <Link
-                        to={a.action.to as never}
-                        params={a.action.params as never}
-                        search={a.action.search as never}
+                        to="/app/people/$id"
+                        params={{ id: item.personPublicId }}
                         className="text-xs font-medium rounded-lg border border-border/60 px-3 py-1.5 hover:bg-foreground/[0.04]"
                       >
-                        {a.action.label}
+                        {item.actionLabel}
                       </Link>
                     </div>
                   </div>
@@ -342,28 +710,30 @@ function Overview() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/60">
-                      {recentInbound.map((r) => (
+                      {recentInbound.map((record) => (
                         <tr
-                          key={r.id}
+                          key={record.id}
                           className="hover:bg-foreground/[0.02] transition-colors group"
                         >
                           <td className="py-3 px-5">
-                            <div className="text-sm font-medium">{r.candidateName}</div>
+                            <div className="text-sm font-medium">{record.candidateName}</div>
                             <div className="text-[11px] text-muted-foreground font-mono">
-                              {r.id}
+                              {record.id}
                             </div>
                           </td>
                           <td className="py-3 px-3 text-sm text-muted-foreground hidden md:table-cell">
-                            {r.targetName ?? r.organizationName ?? "—"}
+                            {record.targetName ?? record.organizationName ?? "—"}
                           </td>
-                          <td className="py-3 px-3 text-xs text-muted-foreground">{r.status}</td>
+                          <td className="py-3 px-3 text-xs text-muted-foreground">
+                            {record.status}
+                          </td>
                           <td className="py-3 px-3 text-xs text-muted-foreground hidden lg:table-cell">
-                            {formatDistanceToNow(new Date(r.receivedAt), { addSuffix: true })}
+                            {formatDistanceToNow(new Date(record.receivedAt), { addSuffix: true })}
                           </td>
                           <td className="py-3 px-5 text-right">
                             <Link
                               to="/app/verifications/$id"
-                              params={{ id: r.id }}
+                              params={{ id: record.id }}
                               className="text-xs font-medium hover:underline"
                             >
                               Open
@@ -378,7 +748,18 @@ function Overview() {
             </SectionCard>
 
             <SectionCard title="Recent Activity" description="Latest events across your workspace">
-              <RecentActivity />
+              <RecentActivity
+                items={recentActivityItems}
+                loading={
+                  (invitationListQuery.isPending && !invitationListQuery.data) ||
+                  (verificationListQuery.isPending && !verificationListQuery.data)
+                }
+                error={invitationListQuery.error ?? verificationListQuery.error ?? null}
+                retry={() => {
+                  void invitationListQuery.refetch();
+                  void verificationListQuery.refetch();
+                }}
+              />
             </SectionCard>
           </div>
         </>
@@ -387,43 +768,23 @@ function Overview() {
   );
 }
 
-function mapLegacyStatus(s: string) {
-  switch (s) {
-    case "Verified":
-      return "Completed" as const;
-    case "Rejected":
-      return "Unable to Verify" as const;
-    case "Under Review":
-      return "In Verification" as const;
-    case "Documents Requested":
-      return "Clarification Required" as const;
-    case "Pending":
-      return "Waiting for Candidate" as const;
-    default:
-      return "Not Started" as const;
-  }
-}
-
 function AttentionIcon({ reason }: { reason: string }) {
-  const r = reason.toLowerCase();
+  const normalizedReason = reason.toLowerCase();
   let Icon = AlertTriangle;
   let cls = "bg-warning/15 text-warning-foreground";
-  if (r.includes("completed")) {
-    Icon = CheckCircle2;
-    cls = "bg-success/15 text-success";
-  } else if (r.includes("could not") || r.includes("unable")) {
+  if (normalizedReason.includes("could not") || normalizedReason.includes("unable")) {
     Icon = ShieldOff;
     cls = "bg-destructive/10 text-destructive";
-  } else if (r.includes("clarification")) {
+  } else if (normalizedReason.includes("clarification")) {
     Icon = MessageCircleWarning;
     cls = "bg-warning/15 text-warning-foreground";
-  } else if (r.includes("expires")) {
+  } else if (normalizedReason.includes("expires") || normalizedReason.includes("expired")) {
     Icon = MailOpen;
     cls = "bg-warning/15 text-warning-foreground";
-  } else if (r.includes("accept")) {
+  } else if (normalizedReason.includes("accept")) {
     Icon = MailPlus;
     cls = "bg-info/15 text-info-foreground";
-  } else if (r.includes("incomplete")) {
+  } else if (normalizedReason.includes("pending")) {
     Icon = Hourglass;
     cls = "bg-warning/15 text-warning-foreground";
   }
@@ -434,14 +795,33 @@ function AttentionIcon({ reason }: { reason: string }) {
   );
 }
 
-function RecentActivity() {
-  const { people } = useDashboard();
-  const items = people
-    .flatMap((p) =>
-      p.personActivity.slice(0, 2).map((a) => ({ ...a, personName: p.name, personId: p.id })),
-    )
-    .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
-    .slice(0, 10);
+function RecentActivity({
+  items,
+  loading,
+  error,
+  retry,
+}: {
+  items: OverviewActivityItem[];
+  loading: boolean;
+  error: unknown;
+  retry: () => void;
+}) {
+  if (loading) {
+    return <TableSkeleton rows={5} />;
+  }
+
+  if (error) {
+    const description = error instanceof Error ? error.message : "Please try again.";
+    return (
+      <EmptyState
+        icon={AlertTriangle}
+        title="Recent activity didn't load"
+        description={description}
+        action={{ label: "Retry", onClick: retry }}
+      />
+    );
+  }
+
   if (items.length === 0) {
     return (
       <EmptyState
@@ -451,23 +831,24 @@ function RecentActivity() {
       />
     );
   }
+
   return (
     <div className="divide-y divide-border/60 max-h-[520px] overflow-y-auto">
-      {items.map((a) => (
+      {items.map((item) => (
         <Link
-          key={`${a.personId}-${a.id}`}
-          to="/app/people/$id"
-          params={{ id: a.personId }}
+          key={item.id}
+          to={item.to as never}
+          params={item.params as never}
           className="px-5 py-3.5 flex items-start gap-3 hover:bg-foreground/[0.02]"
         >
-          <ActivityIcon kind={a.kind} />
+          <ActivityIcon kind={item.kind} />
           <div className="flex-1 min-w-0">
             <div className="text-sm">
-              <span className="font-medium">{a.personName}</span>{" "}
-              <span className="text-muted-foreground">· {a.label.toLowerCase()}</span>
+              <span className="font-medium">{item.subjectName}</span>{" "}
+              <span className="text-muted-foreground">· {item.label}</span>
             </div>
             <div className="text-[11px] text-muted-foreground mt-0.5">
-              {formatDistanceToNow(new Date(a.at), { addSuffix: true })} · {a.actor}
+              {formatDistanceToNow(new Date(item.at), { addSuffix: true })} · {item.actor}
             </div>
           </div>
         </Link>
@@ -478,29 +859,22 @@ function RecentActivity() {
 
 function ActivityIcon({ kind }: { kind: string }) {
   const map: Record<string, { Icon: typeof CheckCircle2; cls: string }> = {
-    added: { Icon: UserPlus, cls: "bg-foreground/[0.06] text-foreground" },
     invited: { Icon: MailPlus, cls: "bg-info/15 text-info-foreground" },
     opened: { Icon: MailOpen, cls: "bg-info/15 text-info-foreground" },
     accepted: { Icon: MailCheck, cls: "bg-success/15 text-success" },
-    consent: { Icon: ShieldCheck, cls: "bg-success/15 text-success" },
-    shared: { Icon: Share2, cls: "bg-success/15 text-success" },
-    accessed: { Icon: FileText, cls: "bg-foreground/[0.06] text-foreground" },
     request: { Icon: ShieldCheck, cls: "bg-info/15 text-info-foreground" },
-    submitted: { Icon: FileText, cls: "bg-info/15 text-info-foreground" },
     "clarification-req": {
-      Icon: MessageCircleWarning,
-      cls: "bg-warning/15 text-warning-foreground",
-    },
-    "clarification-recv": {
       Icon: MessageCircleWarning,
       cls: "bg-warning/15 text-warning-foreground",
     },
     completed: { Icon: CheckCircle2, cls: "bg-success/15 text-success" },
     unable: { Icon: ShieldOff, cls: "bg-destructive/10 text-destructive" },
     expired: { Icon: ShieldOff, cls: "bg-destructive/10 text-destructive" },
-    revoked: { Icon: ShieldOff, cls: "bg-destructive/10 text-destructive" },
+    revoked: { Icon: Share2, cls: "bg-foreground/[0.06] text-foreground" },
+    added: { Icon: UserPlus, cls: "bg-foreground/[0.06] text-foreground" },
+    submitted: { Icon: FileText, cls: "bg-info/15 text-info-foreground" },
   };
-  const { Icon, cls } = map[kind] ?? map.added;
+  const { Icon, cls } = map[kind] ?? map.request;
   return (
     <div className={`h-7 w-7 rounded-full flex items-center justify-center shrink-0 ${cls}`}>
       <Icon className="h-3.5 w-3.5" />

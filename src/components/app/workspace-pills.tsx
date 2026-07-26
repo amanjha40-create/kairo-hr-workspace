@@ -6,7 +6,7 @@ import type {
   WorkspaceVerificationStatus,
   SharedPassportStatus,
   ClaimStatus,
-} from "@/lib/workspace-data";
+} from "@/lib/workspace-types";
 import {
   Briefcase,
   UserCircle2,

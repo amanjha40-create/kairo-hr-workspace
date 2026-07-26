@@ -1,5 +1,5 @@
 import { ApiError } from "@/lib/api/client";
-import type { InvitationStatus } from "@/lib/workspace-data";
+import type { InvitationStatus } from "@/lib/workspace-types";
 import type {
   BackendTrustInvitationCreateResponse,
   BackendTrustInvitationDeliveryState,
