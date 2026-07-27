@@ -419,10 +419,6 @@ function AppLayout() {
         </header>
 
         {accessState === "verification_pending" && <VerificationPendingBanner />}
-        <div className="border-b border-border/60 bg-foreground/[0.03] px-4 md:px-8 py-2 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground flex items-center gap-2">
-          <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary" />
-          Demo environment · Sample data
-        </div>
         <main className="flex-1 p-4 md:p-8 max-w-[1500px] w-full mx-auto">
           {accessState === "access_denied" ? (
             <AccessDeniedScreen message="You don't have access to this workspace." />
