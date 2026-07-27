@@ -1,22 +1,115 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
+import { OrgOnboarding } from "@/components/app/access/OrgOnboarding";
+import {
+  AccessDeniedScreen,
+  InvitationPendingScreen,
+  MembershipSuspendedScreen,
+  OrgSuspendedScreen,
+  SessionExpiredScreen,
+  WorkspaceErrorScreen,
+  WorkspaceLoadingScreen,
+} from "@/components/app/access/StateScreens";
+import { DevPreview } from "@/components/app/access/DevPreview";
 import { useAccess } from "@/lib/access-context";
 
-// Organization onboarding route. When the workspace is in `no_org` or
-// `setup_incomplete`, `AppRoot` renders the OrgOnboarding wizard directly
-// (bypassing the app chrome) — this component only handles the "already
-// set up" case by bouncing the user back to /app.
 export const Route = createFileRoute("/app/setup")({
   component: SetupRoute,
 });
 
 function SetupRoute() {
-  const { state } = useAccess();
+  const { state, loading, error, retry } = useAccess();
   const navigate = useNavigate();
+
   useEffect(() => {
     if (state !== "no_org" && state !== "setup_incomplete") {
-      navigate({ to: "/app", replace: true });
+      if (state === "ready") {
+        navigate({ to: "/app", replace: true });
+      }
     }
   }, [state, navigate]);
-  return null;
+
+  if (loading) {
+    return (
+      <>
+        <WorkspaceLoadingScreen />
+        <DevPreview />
+      </>
+    );
+  }
+
+  if (state === "session_expired") {
+    return (
+      <>
+        <SessionExpiredScreen />
+        <DevPreview />
+      </>
+    );
+  }
+
+  if (error && state !== "access_denied") {
+    return (
+      <>
+        <WorkspaceErrorScreen
+          message={error.message}
+          onRetry={() => {
+            void retry();
+          }}
+        />
+        <DevPreview />
+      </>
+    );
+  }
+
+  if (state === "access_denied") {
+    return (
+      <>
+        <AccessDeniedScreen message="You don't have access to this workspace." />
+        <DevPreview />
+      </>
+    );
+  }
+
+  if (state === "no_org" || state === "setup_incomplete") {
+    return (
+      <>
+        <OrgOnboarding />
+        <DevPreview />
+      </>
+    );
+  }
+
+  if (state === "invitation_pending") {
+    return (
+      <>
+        <InvitationPendingScreen />
+        <DevPreview />
+      </>
+    );
+  }
+
+  if (state === "org_suspended") {
+    return (
+      <>
+        <OrgSuspendedScreen />
+        <DevPreview />
+      </>
+    );
+  }
+
+  if (state === "membership_suspended") {
+    return (
+      <>
+        <MembershipSuspendedScreen />
+        <DevPreview />
+      </>
+    );
+  }
+
+  return (
+    <>
+      <WorkspaceLoadingScreen />
+      <DevPreview />
+    </>
+  );
 }

@@ -34,7 +34,6 @@ import { DashboardProvider, useDashboard } from "@/lib/dashboard-context";
 import { InviteEmployeeModal } from "@/components/app/InviteEmployeeModal";
 import { NotificationsPopover } from "@/components/app/NotificationsPopover";
 import { AccessProvider, useAccess } from "@/lib/access-context";
-import { OrgOnboarding } from "@/components/app/access/OrgOnboarding";
 import {
   InvitationPendingScreen,
   OrgSuspendedScreen,
@@ -70,13 +69,18 @@ function AppRoot() {
   const { state, loading, error, retry } = useAccess();
   const navigate = useNavigate();
   const path = useRouterState({ select: (s) => s.location.pathname });
+  const isSetupRoute = path === "/app/setup";
   const needsSetup = state === "no_org" || state === "setup_incomplete";
 
   useEffect(() => {
-    if (needsSetup && path !== "/app/setup") {
+    if (needsSetup && !isSetupRoute) {
       navigate({ to: "/app/setup", replace: true });
     }
-  }, [needsSetup, path, navigate]);
+  }, [isSetupRoute, needsSetup, navigate]);
+
+  if (isSetupRoute) {
+    return <Outlet />;
+  }
 
   if (loading)
     return (
@@ -109,13 +113,6 @@ function AppRoot() {
     return (
       <>
         <AccessDeniedScreen message="You don't have access to this workspace." />
-        <DevPreview />
-      </>
-    );
-  if (needsSetup)
-    return (
-      <>
-        <OrgOnboarding />
         <DevPreview />
       </>
     );
