@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { makeTrustInvitationRecord } from "@/test/trust-invitation-fixtures";
 
 let routeSearch = { status: "all", purpose: "all", type: "all", page: 1 };
+let routePathname = "/app/invitations";
 const navigateSpy = vi.fn();
 const fetchQuerySpy = vi.fn();
 const refetchInvitationsSpy = vi.fn();
@@ -37,6 +38,12 @@ vi.mock("@tanstack/react-router", () => ({
     useSearch: () => routeSearch,
   }),
   useNavigate: () => navigateSpy,
+  useRouterState: ({
+    select,
+  }: {
+    select: (state: { location: { pathname: string } }) => unknown;
+  }) => select({ location: { pathname: routePathname } }),
+  Outlet: () => <div>invitation-detail-outlet</div>,
   Link: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
 
@@ -176,6 +183,7 @@ const InvitationsPage = Route.options.component as ComponentType;
 describe("Trust Invitations list page", () => {
   beforeEach(() => {
     routeSearch = { status: "all", purpose: "all", type: "all", page: 1 };
+    routePathname = "/app/invitations";
     navigateSpy.mockReset();
     fetchQuerySpy.mockReset();
     refetchInvitationsSpy.mockReset();
@@ -216,6 +224,17 @@ describe("Trust Invitations list page", () => {
     expect(screen.getAllByText("Aman Joshi").length).toBeGreaterThan(0);
     expect(screen.getByText("aman@example.com")).toBeInTheDocument();
     expect(screen.getByText("Delivered")).toBeInTheDocument();
+  });
+
+  it("renders the invitation detail child route instead of the list on /app/invitations/{id}", () => {
+    routePathname = "/app/invitations/ti_123";
+    listQueryState.data = [makeTrustInvitationRecord()];
+
+    render(<InvitationsPage />);
+
+    expect(screen.getByText("invitation-detail-outlet")).toBeInTheDocument();
+    expect(screen.queryByText("Trust Invitations")).not.toBeInTheDocument();
+    expect(screen.queryByText("Aman Joshi")).not.toBeInTheDocument();
   });
 
   it("shows retry on backend error and refetches both list and summary queries", () => {

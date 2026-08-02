@@ -173,6 +173,37 @@ describe("Trust Invitation detail page", () => {
     expect(screen.getByText("Invitation not found")).toBeInTheDocument();
   });
 
+  it("renders backend invitation detail fields and timeline events exactly once", () => {
+    detailQueryState.data = makeTrustInvitationRecord({
+      timeline: [
+        {
+          id: "event_created",
+          kind: "created",
+          label: "Draft created",
+          actor: "Owner Example",
+          at: "2026-07-24T08:00:00.000Z",
+        },
+        {
+          id: "event_sent",
+          kind: "sent",
+          label: "Invitation sent",
+          actor: "Owner Example",
+          at: "2026-07-24T09:00:00.000Z",
+        },
+      ],
+    });
+
+    render(<InvitationDetailPage />);
+
+    expect(screen.getAllByText("Aman Joshi").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("aman@example.com").length).toBeGreaterThan(0);
+    expect(screen.getByText("Delivered")).toBeInTheDocument();
+    expect(screen.getByText("Software Engineer Hiring")).toBeInTheDocument();
+    expect(screen.getByText("https://trust.kairo.dev/invitations/ti_123")).toBeInTheDocument();
+    expect(screen.getByText("Draft created")).toBeInTheDocument();
+    expect(screen.getAllByText("Invitation sent")).toHaveLength(1);
+  });
+
   it("resends backend invitations from the detail page", () => {
     detailQueryState.data = makeTrustInvitationRecord({ status: "Sent" });
     resendMutationSpy.mockResolvedValue(detailQueryState.data);

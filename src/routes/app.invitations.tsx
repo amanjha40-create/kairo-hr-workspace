@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
@@ -90,10 +90,10 @@ function InvitationsPage() {
   const { org, can } = useAccess();
   const canInvite = can("invite_candidate");
   const canModify = can("modify_invitation");
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
   const nav = useNavigate({ from: Route.fullPath });
   const searchParams = Route.useSearch();
   const queryClient = useQueryClient();
-
   const invitationsQuery = useTrustInvitationListQuery(org?.publicId, {
     search: search.trim() || undefined,
     status: mapUiStatusToBackendFilter(searchParams.status),
@@ -129,6 +129,10 @@ function InvitationsPage() {
     searchParams.status !== "all" ||
     searchParams.purpose !== "all" ||
     searchParams.type !== "all";
+
+  if (pathname !== "/app/invitations") {
+    return <Outlet />;
+  }
 
   const setFilter = (key: "status" | "purpose" | "type" | "page", value: string | number) =>
     nav({
