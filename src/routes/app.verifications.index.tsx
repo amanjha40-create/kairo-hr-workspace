@@ -77,6 +77,7 @@ function EmploymentVerificationsPage() {
   const params = Route.useSearch();
 
   const verificationsQuery = useVerificationRequestListQuery(org?.publicId, {
+    search: search.trim() || undefined,
     sort_by: "updated_at",
     sort_order: "desc",
   });

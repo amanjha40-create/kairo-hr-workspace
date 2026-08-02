@@ -127,11 +127,8 @@ function EmploymentVerificationDetailPage() {
 
   const assignedReviewerOptionId = useMemo(() => {
     if (!verification?.assignedReviewer) return "unassigned";
-    const match = reviewerOptions.find(
-      (reviewer) => reviewer.email === verification.assignedReviewer?.email,
-    );
-    return match?.id ?? "unassigned";
-  }, [reviewerOptions, verification?.assignedReviewer]);
+    return `assigned:${verification.assignedReviewer.userId}`;
+  }, [verification?.assignedReviewer]);
 
   const runMutation = async (
     callback: () => Promise<unknown>,
@@ -594,6 +591,12 @@ function EmploymentVerificationDetailPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="unassigned">Unassigned</SelectItem>
+                      {verification.assignedReviewer ? (
+                        <SelectItem value={assignedReviewerOptionId} disabled>
+                          {verification.assignedReviewer.fullName ??
+                            verification.assignedReviewer.email}
+                        </SelectItem>
+                      ) : null}
                       {reviewerOptions.map((reviewer) => (
                         <SelectItem key={reviewer.id} value={reviewer.id}>
                           {reviewer.fullName}

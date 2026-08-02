@@ -4,7 +4,6 @@ import {
   AlertTriangle,
   ArrowRight,
   CheckCircle2,
-  EyeOff,
   FileText,
   Hourglass,
   Loader2,
@@ -366,7 +365,7 @@ function buildVerificationActivityItems(
 }
 
 function Overview() {
-  const { setInviteOpen, emptyMode, setEmptyMode } = useDashboard();
+  const { setInviteOpen } = useDashboard();
   const { org, can } = useAccess();
   const canInvite = can("invite_candidate");
 
@@ -403,18 +402,14 @@ function Overview() {
     ? getPeopleOverviewCounts(peopleDirectoryQuery.data.summary)
     : { totalPeople: 0, inVerification: 0 };
 
-  const attentionItems = useMemo(
-    () => (emptyMode ? [] : buildOverviewAttentionItems(peopleRows)),
-    [emptyMode, peopleRows],
-  );
+  const attentionItems = useMemo(() => buildOverviewAttentionItems(peopleRows), [peopleRows]);
   const recentActivityItems = useMemo(() => {
-    if (emptyMode) return [];
     const items: OverviewActivityItem[] = [
       ...buildInvitationActivityItems(invitationRows),
       ...buildVerificationActivityItems(verificationRows),
     ];
     return sortByNewest(items).slice(0, 10);
-  }, [emptyMode, invitationRows, verificationRows]);
+  }, [invitationRows, verificationRows]);
 
   const hasInvitationData =
     invitationCounts.active +
@@ -424,16 +419,15 @@ function Overview() {
     0;
   const hasVerificationData = verificationRows.length > 0;
   const isEmpty =
-    emptyMode ||
-    (!invitationSummaryQuery.isPending &&
-      !verificationListQuery.isPending &&
-      !peopleDirectoryQuery.isPending &&
-      !invitationSummaryQuery.error &&
-      !verificationListQuery.error &&
-      !peopleDirectoryQuery.error &&
-      peopleCounts.totalPeople === 0 &&
-      !hasInvitationData &&
-      !hasVerificationData);
+    !invitationSummaryQuery.isPending &&
+    !verificationListQuery.isPending &&
+    !peopleDirectoryQuery.isPending &&
+    !invitationSummaryQuery.error &&
+    !verificationListQuery.error &&
+    !peopleDirectoryQuery.error &&
+    peopleCounts.totalPeople === 0 &&
+    !hasInvitationData &&
+    !hasVerificationData;
 
   const activeInvitations = invitationSummaryQuery.error ? "—" : invitationCounts.active;
   const awaitingCandidate = invitationSummaryQuery.error ? "—" : invitationCounts.awaiting;
@@ -505,33 +499,11 @@ function Overview() {
         title="Overview"
         description="Track Trust Invitations, incoming Employment Verifications, and shared professional trust."
         actions={
-          <>
-            {emptyMode ? (
-              <Button
-                variant="outline"
-                onClick={() => setEmptyMode(false)}
-                className="rounded-xl"
-                size="sm"
-              >
-                Exit empty preview
-              </Button>
-            ) : import.meta.env.DEV ? (
-              <Button
-                variant="outline"
-                onClick={() => setEmptyMode(true)}
-                className="rounded-xl"
-                size="sm"
-                title="Development only"
-              >
-                <EyeOff className="h-4 w-4 mr-1.5" /> Preview empty state
-              </Button>
-            ) : null}
-            {canInvite ? (
-              <Button onClick={() => setInviteOpen(true)} className="btn-premium rounded-xl">
-                <Plus className="h-4 w-4 mr-1.5" /> Invite Candidate
-              </Button>
-            ) : null}
-          </>
+          canInvite ? (
+            <Button onClick={() => setInviteOpen(true)} className="btn-premium rounded-xl">
+              <Plus className="h-4 w-4 mr-1.5" /> Invite Candidate
+            </Button>
+          ) : null
         }
       />
       {!canInvite ? (
