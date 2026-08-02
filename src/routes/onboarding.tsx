@@ -3,16 +3,9 @@ import { useEffect, useState } from "react";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Layers, Loader2, ShieldCheck, Sparkles, Workflow } from "lucide-react";
-import { toast } from "sonner";
 import { ProfileTypeStep, type ProfileType } from "@/components/onboarding/ProfileTypeStep";
 import { useAuth } from "@/lib/auth-context";
-import { ApiError } from "@/lib/api/client";
-import { completeOrganizationOnboarding } from "@/lib/api/organization-signup";
-import {
-  clearOrganizationSignupDraft,
-  deriveDomainFromWorkEmail,
-  readOrganizationSignupDraft,
-} from "@/lib/organization-signup-draft";
+import { readOrganizationSignupDraft } from "@/lib/organization-signup-draft";
 
 export const Route = createFileRoute("/onboarding")({
   head: () => ({
@@ -78,25 +71,11 @@ function OnboardingPage() {
     try {
       const draft = readOrganizationSignupDraft();
       if (draft?.stage === "complete_onboarding") {
-        await completeOrganizationOnboarding({
-          name: draft.companyName.trim() || "New organization",
-          organization_type: "employer",
-          work_email: draft.workEmail.trim() || undefined,
-          domain: deriveDomainFromWorkEmail(draft.workEmail),
-          organization_size: draft.companySize || undefined,
-          hiring_volume: draft.hiringVolume || undefined,
-        });
-        clearOrganizationSignupDraft();
-      }
-      navigate({ to: "/app" });
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 409) {
-        clearOrganizationSignupDraft();
-        navigate({ to: "/app" });
+        navigate({ to: "/app/setup" });
         return;
       }
-      const message = error instanceof Error ? error.message : "Could not complete onboarding";
-      toast.error(message);
+
+      navigate({ to: "/app" });
     } finally {
       setFinishing(false);
     }

@@ -2,6 +2,12 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api/client";
+import { completeOrganizationOnboarding } from "@/lib/api/organization-signup";
+import {
+  clearOrganizationSignupDraft,
+  deriveDomainFromWorkEmail,
+  readOrganizationSignupDraft,
+} from "@/lib/organization-signup-draft";
 import {
   acceptWorkspaceInvitation,
   createOrganization,
@@ -195,15 +201,17 @@ function toPendingInvitation(data: WorkspaceBootstrapResponse["pending_organizat
 }
 
 function buildOnboardingDraft(org: WorkspaceBootstrapResponse["active_organization"] | null): OnboardingDraft {
+  const signupDraft = org ? null : readOrganizationSignupDraft();
+
   return {
-    step: 1,
-    name: org?.name ?? "",
+    step: signupDraft?.stage === "complete_onboarding" ? 2 : 1,
+    name: org?.name ?? signupDraft?.companyName ?? "",
     type: org ? mapBackendOrgType(org.organization_type) : "Employer",
     website: org?.website ?? "",
     industry: org?.industry ?? "",
     location: org?.location ?? "",
-    workEmail: org?.work_email ?? "",
-    domain: org?.domain ?? "",
+    workEmail: org?.work_email ?? signupDraft?.workEmail ?? "",
+    domain: org?.domain ?? deriveDomainFromWorkEmail(signupDraft?.workEmail ?? "") ?? "",
     role: "Owner",
   };
 }
@@ -290,14 +298,41 @@ export function AccessProvider({ children }: { children: ReactNode }) {
         verification_capabilities: [] as string[],
       };
 
-      const currentOrgId = bootstrapQuery.data?.active_organization?.public_id;
-      if (currentOrgId) {
+      let currentOrgId = bootstrapQuery.data?.active_organization?.public_id;
+      const signupDraft = !currentOrgId ? readOrganizationSignupDraft() : null;
+
+      if (!currentOrgId && signupDraft?.stage === "complete_onboarding") {
+        try {
+          await completeOrganizationOnboarding({
+            name: payload.name,
+            organization_type: payload.organization_type,
+            work_email: payload.work_email,
+            domain: payload.domain,
+            organization_size: signupDraft.companySize || undefined,
+            hiring_volume: signupDraft.hiringVolume || undefined,
+          });
+        } catch (error) {
+          if (!(error instanceof ApiError && error.status === 409)) {
+            throw error;
+          }
+        }
+
+        const refreshedBootstrap = await bootstrapQuery.refetch();
+        currentOrgId = refreshedBootstrap.data?.active_organization?.public_id;
+
+        if (!currentOrgId) {
+          throw new Error("Organization setup did not return an active workspace.");
+        }
+
+        await updateOrganization(currentOrgId, payload);
+      } else if (currentOrgId) {
         await updateOrganization(currentOrgId, payload);
       } else {
         await createOrganization(payload);
       }
 
       setOnboarding(null);
+      clearOrganizationSignupDraft();
       await refreshBootstrap();
     } catch (error) {
       const message = error instanceof Error ? error.message : "We couldn't save your organization setup.";
