@@ -23,9 +23,7 @@ function SetupRoute() {
 
   useEffect(() => {
     if (state !== "no_org" && state !== "setup_incomplete") {
-      if (state === "ready") {
-        navigate({ to: "/app", replace: true });
-      }
+      navigate({ to: "/app", replace: true });
     }
   }, [state, navigate]);
 
