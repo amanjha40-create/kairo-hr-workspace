@@ -33,10 +33,11 @@ import {
   type VerificationTimelineItem,
 } from "@/lib/employment-verifications";
 import {
+  useAcceptVerificationRequestMutation,
   useAssignVerificationReviewerMutation,
-  useCancelVerificationRequestMutation,
   useRejectVerificationRequestMutation,
   useRequestVerificationClarificationMutation,
+  useUnableToVerifyVerificationRequestMutation,
   useUpdateVerificationInternalNoteMutation,
   useVerificationRequestDetailQuery,
   useVerificationRequestEvidenceQuery,
@@ -75,7 +76,8 @@ export const Route = createFileRoute("/app/verifications/$id")({
   component: EmploymentVerificationDetailPage,
 });
 
-type ActionMode = "verify" | "reject" | "cancel";
+type VerifierResponseMode = "confirm" | "discrepancy" | "unable";
+const EMPTY_TIMELINE: VerificationTimelineItem[] = [];
 
 function EmploymentVerificationDetailPage() {
   const { id } = Route.useParams();
@@ -88,24 +90,29 @@ function EmploymentVerificationDetailPage() {
   const reviewersQuery = useVerificationReviewerOptionsQuery(org?.publicId);
 
   const assignReviewerMutation = useAssignVerificationReviewerMutation();
+  const acceptMutation = useAcceptVerificationRequestMutation();
   const updateNoteMutation = useUpdateVerificationInternalNoteMutation();
   const clarificationMutation = useRequestVerificationClarificationMutation();
   const verifyMutation = useVerifyVerificationRequestMutation();
   const rejectMutation = useRejectVerificationRequestMutation();
-  const cancelMutation = useCancelVerificationRequestMutation();
+  const unableToVerifyMutation = useUnableToVerifyVerificationRequestMutation();
 
   const [clarifyOpen, setClarifyOpen] = useState(false);
   const [clarifyText, setClarifyText] = useState("");
-  const [actionMode, setActionMode] = useState<ActionMode | null>(null);
+  const [actionMode, setActionMode] = useState<VerifierResponseMode | null>(null);
   const [actionNote, setActionNote] = useState("");
   const [internalDraft, setInternalDraft] = useState("");
 
   const verification = detailQuery.data;
-  const timeline = timelineQuery.data ?? [];
+  const timeline = timelineQuery.data ?? EMPTY_TIMELINE;
   const evidence = evidenceQuery.data ?? [];
   const reviewerOptions = reviewersQuery.data ?? [];
   const reviewable = verification ? canReviewVerification(verification) : false;
   const nextAction = verification ? getVerificationNextAction(verification) : null;
+  const requiresAcceptance = verification?.backendStatus === "pending_organization_acceptance";
+  const awaitingAdminQualityReview = verification?.backendStatus === "pending_admin_quality_review";
+  const canSubmitVerifierResponse =
+    Boolean(verification) && reviewable && !requiresAcceptance && !awaitingAdminQualityReview;
   const timelineError = timelineQuery.error;
   const evidenceError = evidenceQuery.error;
   const reviewerError = reviewersQuery.error;
@@ -234,7 +241,26 @@ function EmploymentVerificationDetailPage() {
         }
       />
 
-      {reviewable ? (
+      {requiresAcceptance ? (
+        <div className="mb-8 flex flex-wrap items-center gap-2 pb-6 border-b border-border/60">
+          <Button
+            size="sm"
+            className="btn-premium rounded-xl"
+            onClick={() =>
+              void runMutation(
+                () => acceptMutation.mutateAsync(verification.id),
+                "Request accepted",
+                "We couldn't accept this verification request.",
+              )
+            }
+            disabled={acceptMutation.isPending}
+          >
+            <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" /> Accept request
+          </Button>
+        </div>
+      ) : null}
+
+      {canSubmitVerifierResponse ? (
         <div className="mb-8 flex flex-wrap items-center gap-2 pb-6 border-b border-border/60">
           <Button
             variant="outline"
@@ -250,35 +276,35 @@ function EmploymentVerificationDetailPage() {
             size="sm"
             className="rounded-xl border-destructive/40 text-destructive hover:text-destructive"
             onClick={() => {
-              setActionMode("reject");
+              setActionMode("discrepancy");
               setActionNote("");
             }}
             disabled={rejectMutation.isPending}
           >
-            <XCircle className="h-3.5 w-3.5 mr-1.5" /> Reject
+            <XCircle className="h-3.5 w-3.5 mr-1.5" /> Report discrepancy
           </Button>
           <Button
             variant="outline"
             size="sm"
             className="rounded-xl"
             onClick={() => {
-              setActionMode("cancel");
+              setActionMode("unable");
               setActionNote("");
             }}
-            disabled={cancelMutation.isPending}
+            disabled={unableToVerifyMutation.isPending}
           >
-            <HelpCircle className="h-3.5 w-3.5 mr-1.5" /> Cancel
+            <HelpCircle className="h-3.5 w-3.5 mr-1.5" /> Unable to verify
           </Button>
           <Button
             size="sm"
             className="btn-premium rounded-xl sm:ml-auto"
             onClick={() => {
-              setActionMode("verify");
+              setActionMode("confirm");
               setActionNote("");
             }}
             disabled={verifyMutation.isPending}
           >
-            <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" /> Verify
+            <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" /> Confirm employment
           </Button>
         </div>
       ) : null}
@@ -290,7 +316,11 @@ function EmploymentVerificationDetailPage() {
             description="Backend-owned organization context for this verification request."
           >
             <div className="p-5 grid gap-4 sm:grid-cols-2 text-sm">
-              <Info icon={Building2} label="Organization" value={verification.organizationName ?? "—"} />
+              <Info
+                icon={Building2}
+                label="Organization"
+                value={verification.organizationName ?? "—"}
+              />
               <Info icon={Building2} label="Type" value={verification.organizationType ?? "—"} />
               <Info
                 icon={ShieldCheck}
@@ -311,13 +341,22 @@ function EmploymentVerificationDetailPage() {
           >
             <div className="p-5 space-y-4 text-sm">
               <div className="grid gap-4 sm:grid-cols-2">
-                <Info icon={Building2} label="Organization" value={verification.targetName ?? "—"} />
+                <Info
+                  icon={Building2}
+                  label="Organization"
+                  value={verification.targetName ?? "—"}
+                />
                 <Info icon={User} label="Contact email" value={verification.targetEmail ?? "—"} />
               </div>
               {formatMetadataEntries(verification.targetMetadata).length > 0 ? (
                 <div className="grid gap-3 sm:grid-cols-2">
                   {formatMetadataEntries(verification.targetMetadata).map((entry) => (
-                    <Info key={entry.label} icon={FileText} label={entry.label} value={entry.value} />
+                    <Info
+                      key={entry.label}
+                      icon={FileText}
+                      label={entry.label}
+                      value={entry.value}
+                    />
                   ))}
                 </div>
               ) : (
@@ -333,12 +372,20 @@ function EmploymentVerificationDetailPage() {
             description="What the candidate claims. Verify these fields against your records."
           >
             <div className="p-5 grid gap-4 sm:grid-cols-2 text-sm">
-              <Info icon={Briefcase} label="Employer" value={verification.claim.employerName ?? "—"} />
+              <Info
+                icon={Briefcase}
+                label="Employer"
+                value={verification.claim.employerName ?? "—"}
+              />
               <Info icon={User} label="Role" value={verification.claim.role ?? "—"} />
               <Info
                 icon={Calendar}
                 label="Start date"
-                value={verification.claim.startDate ? format(new Date(verification.claim.startDate), "MMM d, yyyy") : "—"}
+                value={
+                  verification.claim.startDate
+                    ? format(new Date(verification.claim.startDate), "MMM d, yyyy")
+                    : "—"
+                }
               />
               <Info
                 icon={Calendar}
@@ -359,7 +406,10 @@ function EmploymentVerificationDetailPage() {
                 label="Location"
                 value={
                   verification.claim.workLocationRegion || verification.claim.workLocationCountry
-                    ? [verification.claim.workLocationRegion, verification.claim.workLocationCountry]
+                    ? [
+                        verification.claim.workLocationRegion,
+                        verification.claim.workLocationCountry,
+                      ]
                         .filter(Boolean)
                         .join(", ")
                     : "—"
@@ -402,12 +452,18 @@ function EmploymentVerificationDetailPage() {
                 <div className="flex flex-wrap gap-2">
                   {verification.consentedFields.length > 0 ? (
                     verification.consentedFields.map((field) => (
-                      <Badge key={field} variant="outline" className="rounded-full px-3 py-1 text-xs font-normal">
+                      <Badge
+                        key={field}
+                        variant="outline"
+                        className="rounded-full px-3 py-1 text-xs font-normal"
+                      >
                         {field}
                       </Badge>
                     ))
                   ) : (
-                    <span className="text-sm text-muted-foreground">No consented fields returned.</span>
+                    <span className="text-sm text-muted-foreground">
+                      No consented fields returned.
+                    </span>
                   )}
                 </div>
               </div>
@@ -419,12 +475,18 @@ function EmploymentVerificationDetailPage() {
                 <div className="flex flex-wrap gap-2">
                   {verification.consentedEvidenceScope.length > 0 ? (
                     verification.consentedEvidenceScope.map((field) => (
-                      <Badge key={field} variant="outline" className="rounded-full px-3 py-1 text-xs font-normal">
+                      <Badge
+                        key={field}
+                        variant="outline"
+                        className="rounded-full px-3 py-1 text-xs font-normal"
+                      >
                         {field}
                       </Badge>
                     ))
                   ) : (
-                    <span className="text-sm text-muted-foreground">No evidence scope returned.</span>
+                    <span className="text-sm text-muted-foreground">
+                      No evidence scope returned.
+                    </span>
                   )}
                 </div>
               </div>
@@ -491,7 +553,8 @@ function EmploymentVerificationDetailPage() {
                     <div className="min-w-0">
                       <div className="font-medium">{event.label}</div>
                       <div className="text-[11px] text-muted-foreground">
-                        {event.source} · {formatDistanceToNow(new Date(event.at), { addSuffix: true })}
+                        {event.source} ·{" "}
+                        {formatDistanceToNow(new Date(event.at), { addSuffix: true })}
                       </div>
                       {event.note ? (
                         <div className="mt-1 text-xs text-muted-foreground">{event.note}</div>
@@ -510,6 +573,11 @@ function EmploymentVerificationDetailPage() {
               <Row label="Status">
                 <StatusPill status={verification.status} />
               </Row>
+              <Row label="Workflow state">
+                <span className="text-muted-foreground">
+                  {formatWorkflowState(verification.backendStatus)}
+                </span>
+              </Row>
               <Row label="Next action">
                 <span className="text-right">{nextAction?.text ?? "—"}</span>
               </Row>
@@ -517,7 +585,11 @@ function EmploymentVerificationDetailPage() {
                 <span className="text-muted-foreground">{nextAction?.owner ?? "—"}</span>
               </Row>
               <Row label="Reviewer">
-                <span>{verification.assignedReviewer?.fullName ?? verification.assignedReviewer?.email ?? "—"}</span>
+                <span>
+                  {verification.assignedReviewer?.fullName ??
+                    verification.assignedReviewer?.email ??
+                    "—"}
+                </span>
               </Row>
               <Row label="Review status">
                 <span className="text-muted-foreground">{verification.reviewStatus ?? "—"}</span>
@@ -548,7 +620,10 @@ function EmploymentVerificationDetailPage() {
             </div>
           </SectionCard>
 
-          <SectionCard title="Reviewer assignment" description="Assign the workspace reviewer from active organization members.">
+          <SectionCard
+            title="Reviewer assignment"
+            description="Assign the workspace reviewer from active organization members."
+          >
             <div className="p-5 space-y-3">
               {reviewerError ? (
                 <EmptyState
@@ -576,7 +651,7 @@ function EmploymentVerificationDetailPage() {
                       )
                     }
                     disabled={
-                      !reviewable ||
+                      !canSubmitVerifierResponse ||
                       reviewersQuery.isPending ||
                       assignReviewerMutation.isPending ||
                       reviewerOptions.length === 0
@@ -607,6 +682,14 @@ function EmploymentVerificationDetailPage() {
                   {verification.isAssignedToCurrentUser ? (
                     <div className="text-xs text-muted-foreground">
                       This verification is currently assigned to you.
+                    </div>
+                  ) : requiresAcceptance ? (
+                    <div className="text-xs text-muted-foreground">
+                      Accept the request before assigning a reviewer.
+                    </div>
+                  ) : awaitingAdminQualityReview ? (
+                    <div className="text-xs text-muted-foreground">
+                      Reviewer changes are unavailable while this request is awaiting admin review.
                     </div>
                   ) : null}
                 </>
@@ -706,18 +789,18 @@ function EmploymentVerificationDetailPage() {
         <DialogContent className="rounded-2xl">
           <DialogHeader>
             <DialogTitle>
-              {actionMode === "verify" ? "Verify employment details" : null}
-              {actionMode === "reject" ? "Reject verification" : null}
-              {actionMode === "cancel" ? "Cancel verification" : null}
+              {actionMode === "confirm" ? "Confirm employment" : null}
+              {actionMode === "discrepancy" ? "Report discrepancy" : null}
+              {actionMode === "unable" ? "Unable to verify" : null}
             </DialogTitle>
             <DialogDescription>
-              Submit the backend verification outcome for this request.
+              Submit the backend verifier response for this request.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
             <Label>
               Note
-              {actionMode === "reject" || actionMode === "cancel" ? (
+              {actionMode === "discrepancy" || actionMode === "unable" ? (
                 <span className="text-destructive"> *</span>
               ) : null}
             </Label>
@@ -725,11 +808,11 @@ function EmploymentVerificationDetailPage() {
               value={actionNote}
               onChange={(event) => setActionNote(event.target.value)}
               placeholder={
-                actionMode === "verify"
-                  ? "Optional supporting context for the completed verification."
-                  : actionMode === "reject"
-                    ? "Explain why this verification is being rejected."
-                    : "Explain why this verification is being cancelled."
+                actionMode === "confirm"
+                  ? "Optional context for the confirmed employment response."
+                  : actionMode === "discrepancy"
+                    ? "Explain the discrepancy you found in the candidate's claim."
+                    : "Explain why this request could not be verified."
               }
               className="rounded-xl min-h-[120px]"
             />
@@ -742,16 +825,16 @@ function EmploymentVerificationDetailPage() {
               className="btn-premium rounded-xl"
               disabled={
                 !actionMode ||
-                ((actionMode === "reject" || actionMode === "cancel") && !actionNote.trim()) ||
+                ((actionMode === "discrepancy" || actionMode === "unable") && !actionNote.trim()) ||
                 verifyMutation.isPending ||
                 rejectMutation.isPending ||
-                cancelMutation.isPending
+                unableToVerifyMutation.isPending
               }
               onClick={() => {
                 if (!actionMode) return;
                 const payload = { note: actionNote.trim() || undefined };
 
-                if (actionMode === "verify") {
+                if (actionMode === "confirm") {
                   void runMutation(
                     async () => {
                       await verifyMutation.mutateAsync({
@@ -760,13 +843,13 @@ function EmploymentVerificationDetailPage() {
                       });
                       setActionMode(null);
                     },
-                    "Verification completed",
-                    "We couldn't verify this request.",
+                    "Employment response submitted",
+                    "We couldn't submit this employment confirmation.",
                   );
                   return;
                 }
 
-                if (actionMode === "reject") {
+                if (actionMode === "discrepancy") {
                   void runMutation(
                     async () => {
                       await rejectMutation.mutateAsync({
@@ -775,22 +858,22 @@ function EmploymentVerificationDetailPage() {
                       });
                       setActionMode(null);
                     },
-                    "Verification rejected",
-                    "We couldn't reject this request.",
+                    "Discrepancy reported",
+                    "We couldn't report this discrepancy.",
                   );
                   return;
                 }
 
                 void runMutation(
                   async () => {
-                    await cancelMutation.mutateAsync({
+                    await unableToVerifyMutation.mutateAsync({
                       verificationRequestPublicId: verification.id,
                       payload,
                     });
                     setActionMode(null);
                   },
-                  "Verification cancelled",
-                  "We couldn't cancel this request.",
+                  "Unable-to-verify response submitted",
+                  "We couldn't submit the unable-to-verify response.",
                 );
               }}
             >
@@ -801,6 +884,10 @@ function EmploymentVerificationDetailPage() {
       </Dialog>
     </div>
   );
+}
+
+function formatWorkflowState(value: string) {
+  return value.replace(/_/g, " ").replace(/\b\w/g, (match) => match.toUpperCase());
 }
 
 function EvidenceRow({ item }: { item: VerificationEvidenceItem }) {
@@ -858,15 +945,7 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-function Info({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: ElementType;
-  label: string;
-  value: string;
-}) {
+function Info({ icon: Icon, label, value }: { icon: ElementType; label: string; value: string }) {
   return (
     <div className="flex items-start gap-3">
       <div className="h-8 w-8 rounded-lg bg-foreground/[0.04] flex items-center justify-center shrink-0">

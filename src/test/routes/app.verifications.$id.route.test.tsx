@@ -10,6 +10,7 @@ import {
 
 let routeParams = { id: "vr_123" };
 const updateInternalNoteSpy = vi.fn();
+const acceptMutationSpy = vi.fn();
 
 const accessState: { org: { publicId: string } | null; can: (action: string) => boolean } = {
   org: { publicId: "org_123" },
@@ -140,7 +141,8 @@ vi.mock("@/components/ui/textarea", () => ({
 }));
 
 vi.mock("@/components/ui/dialog", () => ({
-  Dialog: ({ children, open }: { children: ReactNode; open?: boolean }) => (open ? <div>{children}</div> : null),
+  Dialog: ({ children, open }: { children: ReactNode; open?: boolean }) =>
+    open ? <div>{children}</div> : null,
   DialogContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   DialogHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   DialogTitle: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -161,10 +163,14 @@ vi.mock("@/lib/access-context", () => ({
 }));
 
 vi.mock("@/lib/queries/verification-requests", () => ({
+  useAcceptVerificationRequestMutation: () => ({
+    mutateAsync: acceptMutationSpy,
+    isPending: false,
+  }),
   useAssignVerificationReviewerMutation: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  useCancelVerificationRequestMutation: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useRejectVerificationRequestMutation: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useRequestVerificationClarificationMutation: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useUnableToVerifyVerificationRequestMutation: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useUpdateVerificationInternalNoteMutation: () => ({
     mutateAsync: updateInternalNoteSpy,
     isPending: false,
@@ -188,6 +194,7 @@ describe("Employment Verification detail page", () => {
     routeParams = { id: "vr_123" };
     accessState.org = { publicId: "org_123" };
     accessState.can = (action: string) => action === "modify_verification";
+    acceptMutationSpy.mockReset();
     updateInternalNoteSpy.mockReset();
     detailQueryState.data = makeEmploymentVerificationRecord();
     detailQueryState.isPending = false;
@@ -235,6 +242,34 @@ describe("Employment Verification detail page", () => {
       verificationRequestPublicId: "vr_123",
       note: "Updated internal note",
     });
+  });
+
+  it("shows acceptance as the only verifier action before the request is accepted", () => {
+    const acceptedRecord = makeEmploymentVerificationRecord({
+      backendStatus: "in_progress",
+      status: "In Review",
+      reviewStatus: "assigned",
+    });
+    acceptMutationSpy.mockResolvedValue(acceptedRecord);
+    detailQueryState.data = makeEmploymentVerificationRecord({
+      backendStatus: "pending_organization_acceptance",
+      status: "Needs Acceptance",
+      reviewStatus: "unassigned",
+      assignedReviewer: undefined,
+      isAssignedToCurrentUser: false,
+    });
+
+    render(<EmploymentVerificationDetailPage />);
+
+    expect(screen.getByText("Accept request")).toBeInTheDocument();
+    expect(screen.queryByText("Confirm employment")).not.toBeInTheDocument();
+    expect(screen.queryByText("Report discrepancy")).not.toBeInTheDocument();
+    expect(screen.queryByText("Unable to verify")).not.toBeInTheDocument();
+    expect(screen.getByText("Accept the request before assigning a reviewer.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Accept request"));
+
+    expect(acceptMutationSpy).toHaveBeenCalledWith("vr_123");
   });
 
   it("blocks access when verification-view permission is missing", () => {

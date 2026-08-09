@@ -1,11 +1,13 @@
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { listOrganizationMembers } from "@/lib/api/organization-members";
 import {
+  acceptVerificationRequest,
   assignVerificationReviewer,
   cancelVerificationRequest,
   getVerificationRequestDetail,
   getVerificationRequestEvidence,
   getVerificationRequestTimeline,
+  markVerificationUnableToVerify,
   listVerificationRequests,
   rejectVerificationRequest,
   requestVerificationClarification,
@@ -168,9 +170,7 @@ export function useAssignVerificationReviewerMutation() {
       verificationRequestPublicId: string;
       payload: AssignReviewerPayload;
     }) =>
-      mapVerificationRecord(
-        await assignVerificationReviewer(verificationRequestPublicId, payload),
-      ),
+      mapVerificationRecord(await assignVerificationReviewer(verificationRequestPublicId, payload)),
     onSuccess: async (verification) => {
       await invalidateVerificationRequestQueries(queryClient, verification.id);
     },
@@ -224,12 +224,20 @@ function buildActionMutation(
 export const useRequestVerificationClarificationMutation = buildActionMutation(
   requestVerificationClarification,
 );
-export const useVerifyVerificationRequestMutation = buildActionMutation(
-  verifyVerificationRequest,
+export function useAcceptVerificationRequestMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (verificationRequestPublicId: string) =>
+      mapVerificationRecord(await acceptVerificationRequest(verificationRequestPublicId)),
+    onSuccess: async (verification) => {
+      await invalidateVerificationRequestQueries(queryClient, verification.id);
+    },
+  });
+}
+export const useVerifyVerificationRequestMutation = buildActionMutation(verifyVerificationRequest);
+export const useRejectVerificationRequestMutation = buildActionMutation(rejectVerificationRequest);
+export const useUnableToVerifyVerificationRequestMutation = buildActionMutation(
+  markVerificationUnableToVerify,
 );
-export const useRejectVerificationRequestMutation = buildActionMutation(
-  rejectVerificationRequest,
-);
-export const useCancelVerificationRequestMutation = buildActionMutation(
-  cancelVerificationRequest,
-);
+export const useCancelVerificationRequestMutation = buildActionMutation(cancelVerificationRequest);

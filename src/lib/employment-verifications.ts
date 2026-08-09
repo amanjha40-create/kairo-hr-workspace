@@ -9,10 +9,13 @@ import type {
 import type { BackendOrganizationMemberResponse } from "@/lib/api/organization-members";
 
 export type VerificationInboxStatus =
+  | "Needs Acceptance"
   | "New"
   | "In Review"
+  | "Awaiting Admin Review"
   | "Clarification Requested"
   | "Confirmed"
+  | "Unable to Verify"
   | "Rejected"
   | "Cancelled"
   | "Expired";
@@ -110,6 +113,19 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 const EVENT_LABELS: Record<string, string> = {
+  hr_link_opened: "Verifier link opened",
+  hr_request_accepted: "Organization accepted request",
+  hr_response_confirmed: "Employment confirmed",
+  hr_response_discrepancy_reported: "Discrepancy reported",
+  hr_response_unable_to_verify: "Unable to verify",
+  hr_response_submitted: "Verifier response submitted",
+  organization_resolved: "Organization resolved",
+  hr_invitation_sent: "Verifier invitation sent",
+  admin_approved: "Admin approved",
+  admin_requested_corrections: "Admin requested corrections",
+  verification_request_priority_changed: "Priority changed",
+  verification_request_review_assigned: "Review assigned",
+  verification_request_organization_resolved: "Organization resolved",
   verification_request_created: "Verification request created",
   verification_request_subject_accepted: "Candidate accepted request",
   verification_request_started: "Verification started",
@@ -132,9 +148,7 @@ const EVENT_LABELS: Record<string, string> = {
 };
 
 function titleCase(value: string) {
-  return value
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (match) => match.toUpperCase());
+  return value.replace(/_/g, " ").replace(/\b\w/g, (match) => match.toUpperCase());
 }
 
 function humanizeEventType(value: string) {
@@ -174,7 +188,10 @@ export function getVerificationStatusLabel(
   backendStatus: BackendVerificationRequestStatus,
   reviewStatus: EmploymentVerificationRecord["reviewStatus"],
 ): VerificationInboxStatus {
+  if (backendStatus === "pending_organization_acceptance") return "Needs Acceptance";
+  if (backendStatus === "pending_admin_quality_review") return "Awaiting Admin Review";
   if (backendStatus === "verified") return "Confirmed";
+  if (backendStatus === "unable_to_verify") return "Unable to Verify";
   if (backendStatus === "rejected") return "Rejected";
   if (backendStatus === "cancelled") return "Cancelled";
   if (backendStatus === "expired") return "Expired";
@@ -212,8 +229,7 @@ export function mapVerificationRecord(
       request.verification_target?.metadata ?? request.target_organization_metadata ?? {},
     organizationName: request.organization_summary?.name ?? undefined,
     organizationType: request.organization_summary?.organization_type ?? undefined,
-    organizationVerificationState:
-      request.organization_summary?.verification_state ?? undefined,
+    organizationVerificationState: request.organization_summary?.verification_state ?? undefined,
     organizationSuspended: Boolean(request.organization_summary?.suspended_at),
     claim: {
       employerName: request.employment_claim?.employer_name ?? undefined,
@@ -303,10 +319,20 @@ export function mapReviewerOptions(
 }
 
 export function getVerificationNextAction(record: EmploymentVerificationRecord) {
+  if (record.backendStatus === "pending_organization_acceptance") {
+    return { text: "Accept request", owner: "Us" };
+  }
+  if (record.backendStatus === "pending_admin_quality_review") {
+    return { text: "Awaiting admin quality review", owner: "Admin" };
+  }
   if (record.status === "Clarification Requested") {
     return { text: "Awaiting candidate response", owner: "Candidate" };
   }
-  if (record.status === "Confirmed" || record.status === "Rejected") {
+  if (
+    record.status === "Confirmed" ||
+    record.status === "Rejected" ||
+    record.status === "Unable to Verify"
+  ) {
     return { text: "Delivered to workspace", owner: "None" };
   }
   if (record.status === "Cancelled" || record.status === "Expired") {
@@ -320,8 +346,14 @@ export function getVerificationNextAction(record: EmploymentVerificationRecord) 
 
 export function getVerificationStatusTone(status: VerificationInboxStatus) {
   switch (status) {
+    case "Needs Acceptance":
+      return "warning";
+    case "Awaiting Admin Review":
+      return "info";
     case "Confirmed":
       return "success";
+    case "Unable to Verify":
+      return "destructive";
     case "Rejected":
     case "Cancelled":
     case "Expired":
@@ -372,7 +404,14 @@ export function ageInDays(iso: string) {
 }
 
 export function canReviewVerification(record: EmploymentVerificationRecord) {
-  return !["Confirmed", "Rejected", "Cancelled", "Expired"].includes(record.status);
+  return ![
+    "Awaiting Admin Review",
+    "Confirmed",
+    "Unable to Verify",
+    "Rejected",
+    "Cancelled",
+    "Expired",
+  ].includes(record.status);
 }
 
 export function formatMetadataEntries(metadata: Record<string, unknown>) {
@@ -398,9 +437,7 @@ export function formatFileSize(bytes: number | undefined) {
 
 export function getVerificationErrorMessage(error: unknown, fallback: string) {
   const offline =
-    typeof navigator !== "undefined" &&
-    "onLine" in navigator &&
-    navigator.onLine === false;
+    typeof navigator !== "undefined" && "onLine" in navigator && navigator.onLine === false;
 
   if (offline) {
     return "You're offline. Reconnect to continue.";

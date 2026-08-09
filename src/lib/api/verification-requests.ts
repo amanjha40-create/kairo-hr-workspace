@@ -25,8 +25,10 @@ export type BackendVerificationRequestStatus =
   | "pending_organization_acceptance"
   | "in_progress"
   | "awaiting_information"
+  | "pending_admin_quality_review"
   | "verified"
   | "rejected"
+  | "unable_to_verify"
   | "cancelled"
   | "expired";
 
@@ -253,6 +255,15 @@ export function requestVerificationClarification(
   );
 }
 
+export function acceptVerificationRequest(verificationRequestPublicId: string) {
+  return apiRequest<BackendVerificationRequestResponse>(
+    `/api/v1/verification-requests/${verificationRequestPublicId}/accept`,
+    {
+      method: "POST",
+    },
+  );
+}
+
 export function verifyVerificationRequest(
   verificationRequestPublicId: string,
   payload: VerificationActionPayload,
@@ -285,6 +296,19 @@ export function cancelVerificationRequest(
 ) {
   return apiRequest<BackendVerificationRequestResponse>(
     `/api/v1/verification-requests/${verificationRequestPublicId}/cancel`,
+    {
+      method: "POST",
+      body: payload,
+    },
+  );
+}
+
+export function markVerificationUnableToVerify(
+  verificationRequestPublicId: string,
+  payload: VerificationActionPayload,
+) {
+  return apiRequest<BackendVerificationRequestResponse>(
+    `/api/v1/verification-requests/${verificationRequestPublicId}/unable-to-verify`,
     {
       method: "POST",
       body: payload,
