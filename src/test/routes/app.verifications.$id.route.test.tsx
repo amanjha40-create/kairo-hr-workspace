@@ -261,13 +261,13 @@ describe("Employment Verification detail page", () => {
 
     render(<EmploymentVerificationDetailPage />);
 
-    expect(screen.getByText("Accept request")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Accept request" })).toBeInTheDocument();
     expect(screen.queryByText("Confirm employment")).not.toBeInTheDocument();
     expect(screen.queryByText("Report discrepancy")).not.toBeInTheDocument();
     expect(screen.queryByText("Unable to verify")).not.toBeInTheDocument();
     expect(screen.getByText("Accept the request before assigning a reviewer.")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByText("Accept request"));
+    fireEvent.click(screen.getByRole("button", { name: "Accept request" }));
 
     expect(acceptMutationSpy).toHaveBeenCalledWith("vr_123");
   });

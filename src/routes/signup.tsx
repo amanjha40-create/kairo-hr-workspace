@@ -185,7 +185,7 @@ function SignupPage() {
         stage: "complete_onboarding",
         signupSessionId: undefined,
       });
-      navigate({ to: "/onboarding" });
+      navigate({ to: "/app/setup" });
     } catch (error) {
       const message = error instanceof Error ? error.message : "We couldn't verify your email.";
       toast.error(message);

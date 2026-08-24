@@ -14,7 +14,7 @@ const STATES: { value: AccessState; label: string }[] = [
   { value: "session_expired", label: "Session expired" },
 ];
 
-const ROLES: WorkspaceRole[] = ["Owner", "Admin", "Hiring Manager", "Recruiter", "Viewer"];
+const ROLES: WorkspaceRole[] = ["Owner", "Admin", "Reviewer", "Member"];
 
 /**
  * Development-only preview switcher for organization access states and
@@ -43,32 +43,45 @@ export function DevPreview() {
             <div className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground flex items-center gap-1.5">
               <Wrench className="h-3.5 w-3.5" /> Dev preview
             </div>
-            <button onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground">
+            <button
+              onClick={() => setOpen(false)}
+              className="text-muted-foreground hover:text-foreground"
+            >
               <X className="h-4 w-4" />
             </button>
           </div>
 
           <div className="space-y-3">
             <div>
-              <div className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground mb-1.5">Access state</div>
+              <div className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground mb-1.5">
+                Access state
+              </div>
               <select
                 value={state}
                 onChange={(e) => setState(e.target.value as AccessState)}
                 className="w-full h-9 rounded-lg border border-border/70 bg-background text-sm px-2"
               >
-                {STATES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                {STATES.map((s) => (
+                  <option key={s.value} value={s.value}>
+                    {s.label}
+                  </option>
+                ))}
               </select>
             </div>
 
             <div>
-              <div className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground mb-1.5">Role</div>
+              <div className="text-[11px] uppercase tracking-[0.14em] text-muted-foreground mb-1.5">
+                Role
+              </div>
               <div className="grid grid-cols-2 gap-1.5">
                 {ROLES.map((r) => (
                   <button
                     key={r}
                     onClick={() => setRole(r)}
                     className={`h-8 rounded-lg text-[11px] font-medium border transition-all ${
-                      role === r ? "bg-foreground text-background border-foreground" : "border-border/60 hover:border-foreground/40"
+                      role === r
+                        ? "bg-foreground text-background border-foreground"
+                        : "border-border/60 hover:border-foreground/40"
                     }`}
                   >
                     {r}

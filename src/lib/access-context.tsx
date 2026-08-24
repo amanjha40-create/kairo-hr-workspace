@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api/client";
@@ -10,7 +18,6 @@ import {
 } from "@/lib/organization-signup-draft";
 import {
   acceptWorkspaceInvitation,
-  createOrganization,
   declineWorkspaceInvitation,
   type BackendOrganizationRole,
   type BackendOrganizationType,
@@ -19,9 +26,12 @@ import {
   updateOrganization,
 } from "@/lib/api/workspace";
 import { useAuth } from "@/lib/auth-context";
-import { workspaceBootstrapQueryKey, workspaceBootstrapQueryOptions } from "@/lib/queries/workspace";
+import {
+  workspaceBootstrapQueryKey,
+  workspaceBootstrapQueryOptions,
+} from "@/lib/queries/workspace";
 
-export type WorkspaceRole = "Owner" | "Admin" | "Hiring Manager" | "Recruiter" | "Viewer";
+export type WorkspaceRole = "Owner" | "Admin" | "Reviewer" | "Member" | "Viewer";
 
 export type OrgType =
   | "Employer"
@@ -110,10 +120,25 @@ interface AccessCtx {
 const AccessContext = createContext<AccessCtx | null>(null);
 
 const DEV_PERM_MATRIX: Record<WorkspaceRole, PermissionAction[]> = {
-  Owner: ["invite_candidate", "modify_person", "modify_invitation", "modify_verification", "manage_team", "save_settings", "transfer_ownership"],
-  Admin: ["invite_candidate", "modify_person", "modify_invitation", "modify_verification", "manage_team", "save_settings"],
-  "Hiring Manager": ["invite_candidate", "modify_person", "modify_invitation", "modify_verification"],
-  Recruiter: ["invite_candidate", "modify_person", "modify_invitation"],
+  Owner: [
+    "invite_candidate",
+    "modify_person",
+    "modify_invitation",
+    "modify_verification",
+    "manage_team",
+    "save_settings",
+    "transfer_ownership",
+  ],
+  Admin: [
+    "invite_candidate",
+    "modify_person",
+    "modify_invitation",
+    "modify_verification",
+    "manage_team",
+    "save_settings",
+  ],
+  Reviewer: ["invite_candidate", "modify_person", "modify_invitation", "modify_verification"],
+  Member: ["invite_candidate", "modify_person", "modify_invitation"],
   Viewer: [],
 };
 
@@ -124,9 +149,9 @@ function mapBackendRoleToWorkspaceRole(role: BackendOrganizationRole | null): Wo
     case "admin":
       return "Admin";
     case "reviewer":
-      return "Hiring Manager";
+      return "Reviewer";
     case "member":
-      return "Recruiter";
+      return "Member";
     default:
       return "Viewer";
   }
@@ -162,7 +187,9 @@ function mapBackendOrgType(type: BackendOrganizationType): OrgType {
   }
 }
 
-function mapVerificationState(state: BackendOrganizationVerificationState | null): OrgVerificationStatus {
+function mapVerificationState(
+  state: BackendOrganizationVerificationState | null,
+): OrgVerificationStatus {
   if (state === "verified") {
     return "verified";
   }
@@ -189,7 +216,9 @@ function toOrgProfile(data: WorkspaceBootstrapResponse["active_organization"]): 
   };
 }
 
-function toPendingInvitation(data: WorkspaceBootstrapResponse["pending_organization_invitation"]): OrgInvitationPending | null {
+function toPendingInvitation(
+  data: WorkspaceBootstrapResponse["pending_organization_invitation"],
+): OrgInvitationPending | null {
   if (!data) return null;
   return {
     publicId: data.public_id,
@@ -200,8 +229,12 @@ function toPendingInvitation(data: WorkspaceBootstrapResponse["pending_organizat
   };
 }
 
-function buildOnboardingDraft(org: WorkspaceBootstrapResponse["active_organization"] | null): OnboardingDraft {
+function buildOnboardingDraft(
+  org: WorkspaceBootstrapResponse["active_organization"] | null,
+  membershipRole: BackendOrganizationRole | null,
+): OnboardingDraft {
   const signupDraft = org ? null : readOrganizationSignupDraft();
+  const mappedRole = mapBackendRoleToWorkspaceRole(membershipRole);
 
   return {
     step: signupDraft?.stage === "complete_onboarding" ? 2 : 1,
@@ -212,7 +245,7 @@ function buildOnboardingDraft(org: WorkspaceBootstrapResponse["active_organizati
     location: org?.location ?? "",
     workEmail: org?.work_email ?? signupDraft?.workEmail ?? "",
     domain: org?.domain ?? deriveDomainFromWorkEmail(signupDraft?.workEmail ?? "") ?? "",
-    role: "Owner",
+    role: mappedRole === "Viewer" ? "Owner" : mappedRole,
   };
 }
 
@@ -236,8 +269,18 @@ export function AccessProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!bootstrapQuery.data) return;
-    if (bootstrapQuery.data.state === "no_org" || bootstrapQuery.data.state === "setup_incomplete") {
-      setOnboarding((existing) => existing ?? buildOnboardingDraft(bootstrapQuery.data.active_organization));
+    if (
+      bootstrapQuery.data.state === "no_org" ||
+      bootstrapQuery.data.state === "setup_incomplete"
+    ) {
+      setOnboarding(
+        (existing) =>
+          existing ??
+          buildOnboardingDraft(
+            bootstrapQuery.data.active_organization,
+            bootstrapQuery.data.membership_role,
+          ),
+      );
       return;
     }
     setOnboarding(null);
@@ -252,7 +295,9 @@ export function AccessProvider({ children }: { children: ReactNode }) {
   }, [bootstrapQuery.data, bootstrapQuery.error, sessionExpired]);
 
   const org = toOrgProfile(bootstrapQuery.data?.active_organization ?? null);
-  const pendingInvitation = toPendingInvitation(bootstrapQuery.data?.pending_organization_invitation ?? null);
+  const pendingInvitation = toPendingInvitation(
+    bootstrapQuery.data?.pending_organization_invitation ?? null,
+  );
   const membershipRole = bootstrapQuery.data?.membership_role ?? null;
   const role = devRoleOverride ?? mapBackendRoleToWorkspaceRole(membershipRole);
   const permissionFlags = bootstrapQuery.data?.permission_flags;
@@ -277,74 +322,83 @@ export function AccessProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const startOnboarding = useCallback(() => {
-    setOnboarding((existing) => existing ?? buildOnboardingDraft(bootstrapQuery.data?.active_organization ?? null));
+    setOnboarding(
+      (existing) =>
+        existing ??
+        buildOnboardingDraft(
+          bootstrapQuery.data?.active_organization ?? null,
+          bootstrapQuery.data?.membership_role ?? null,
+        ),
+    );
   }, [bootstrapQuery.data]);
 
-  const updateOnboarding = useCallback((patch: Partial<OnboardingDraft>) => {
-    setOnboarding((previous) => ({ ...(previous ?? buildOnboardingDraft(bootstrapQuery.data?.active_organization ?? null)), ...patch }));
-  }, [bootstrapQuery.data]);
+  const updateOnboarding = useCallback(
+    (patch: Partial<OnboardingDraft>) => {
+      setOnboarding((previous) => ({
+        ...(previous ??
+          buildOnboardingDraft(
+            bootstrapQuery.data?.active_organization ?? null,
+            bootstrapQuery.data?.membership_role ?? null,
+          )),
+        ...patch,
+      }));
+    },
+    [bootstrapQuery.data],
+  );
 
-  const completeOnboarding = useCallback(async (final: OnboardingDraft) => {
-    setActionPending(true);
-    try {
-      const payload = {
-        name: final.name?.trim() || "New organization",
-        organization_type: mapOrgTypeToBackend(final.type ?? "Employer"),
-        website: final.website?.trim() || undefined,
-        industry: final.industry?.trim() || undefined,
-        location: final.location?.trim() || undefined,
-        work_email: final.workEmail?.trim() || undefined,
-        domain: final.domain?.trim() || undefined,
-        verification_capabilities: [] as string[],
-      };
-
-      let currentOrgId = bootstrapQuery.data?.active_organization?.public_id;
-      const signupDraft = !currentOrgId ? readOrganizationSignupDraft() : null;
-
-      if (!currentOrgId && signupDraft?.stage === "complete_onboarding") {
-        try {
-          await completeOrganizationOnboarding({
-            name: payload.name,
-            organization_type: payload.organization_type,
-            work_email: payload.work_email,
-            domain: payload.domain,
-            organization_size: signupDraft.companySize || undefined,
-            hiring_volume: signupDraft.hiringVolume || undefined,
-          });
-        } catch (error) {
-          if (!(error instanceof ApiError && error.status === 409)) {
-            throw error;
-          }
-        }
-
-        const refreshedBootstrap = await bootstrapQuery.refetch();
-        currentOrgId = refreshedBootstrap.data?.active_organization?.public_id;
+  const completeOnboarding = useCallback(
+    async (final: OnboardingDraft) => {
+      setActionPending(true);
+      try {
+        const currentOrgId = bootstrapQuery.data?.active_organization?.public_id;
+        const signupDraft = !currentOrgId ? readOrganizationSignupDraft() : null;
+        const payload = {
+          name: final.name?.trim() || "New organization",
+          organization_type: mapOrgTypeToBackend(final.type ?? "Employer"),
+          website: final.website?.trim() || undefined,
+          industry: final.industry?.trim() || undefined,
+          location: final.location?.trim() || undefined,
+          work_email: final.workEmail?.trim() || undefined,
+          domain: final.domain?.trim() || undefined,
+          organization_size: signupDraft?.companySize || undefined,
+          hiring_volume: signupDraft?.hiringVolume || undefined,
+          verification_capabilities: [] as string[],
+        };
 
         if (!currentOrgId) {
-          throw new Error("Organization setup did not return an active workspace.");
+          try {
+            await completeOrganizationOnboarding(payload);
+          } catch (error) {
+            if (!(error instanceof ApiError && error.status === 409)) {
+              throw error;
+            }
+          }
+        } else {
+          await updateOrganization(currentOrgId, payload);
         }
 
-        await updateOrganization(currentOrgId, payload);
-      } else if (currentOrgId) {
-        await updateOrganization(currentOrgId, payload);
-      } else {
-        await createOrganization(payload);
+        setOnboarding(null);
+        clearOrganizationSignupDraft();
+        await refreshBootstrap();
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "We couldn't save your organization setup.";
+        toast.error(message);
+        throw error;
+      } finally {
+        setActionPending(false);
       }
-
-      setOnboarding(null);
-      clearOrganizationSignupDraft();
-      await refreshBootstrap();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "We couldn't save your organization setup.";
-      toast.error(message);
-      throw error;
-    } finally {
-      setActionPending(false);
-    }
-  }, [bootstrapQuery.data, refreshBootstrap]);
+    },
+    [bootstrapQuery.data, refreshBootstrap],
+  );
 
   const cancelOnboarding = useCallback(() => {
-    setOnboarding(buildOnboardingDraft(bootstrapQuery.data?.active_organization ?? null));
+    setOnboarding(
+      buildOnboardingDraft(
+        bootstrapQuery.data?.active_organization ?? null,
+        bootstrapQuery.data?.membership_role ?? null,
+      ),
+    );
   }, [bootstrapQuery.data]);
 
   const acceptInvitation = useCallback(async () => {
@@ -354,7 +408,8 @@ export function AccessProvider({ children }: { children: ReactNode }) {
       await acceptWorkspaceInvitation(pendingInvitation.publicId);
       await refreshBootstrap();
     } catch (error) {
-      const message = error instanceof Error ? error.message : "We couldn't accept this invitation.";
+      const message =
+        error instanceof Error ? error.message : "We couldn't accept this invitation.";
       toast.error(message);
       throw error;
     } finally {
@@ -369,7 +424,8 @@ export function AccessProvider({ children }: { children: ReactNode }) {
       await declineWorkspaceInvitation(pendingInvitation.publicId);
       await refreshBootstrap();
     } catch (error) {
-      const message = error instanceof Error ? error.message : "We couldn't decline this invitation.";
+      const message =
+        error instanceof Error ? error.message : "We couldn't decline this invitation.";
       toast.error(message);
       throw error;
     } finally {
@@ -377,56 +433,62 @@ export function AccessProvider({ children }: { children: ReactNode }) {
     }
   }, [pendingInvitation, refreshBootstrap]);
 
-  const can = useCallback((action: PermissionAction) => {
-    if (devRoleOverride) {
-      return DEV_PERM_MATRIX[devRoleOverride].includes(action);
-    }
-    return Boolean(permissionFlags?.[action]);
-  }, [devRoleOverride, permissionFlags]);
+  const can = useCallback(
+    (action: PermissionAction) => {
+      if (devRoleOverride) {
+        return DEV_PERM_MATRIX[devRoleOverride].includes(action);
+      }
+      return Boolean(permissionFlags?.[action]);
+    },
+    [devRoleOverride, permissionFlags],
+  );
 
-  const value = useMemo<AccessCtx>(() => ({
-    state: devStateOverride ?? actualState,
-    role,
-    membershipRole,
-    org,
-    pendingInvitation,
-    onboarding,
-    loading: authLoading || (Boolean(session) && bootstrapQuery.isLoading) || actionPending,
-    error: (bootstrapQuery.error as ApiError | Error | null) ?? null,
-    retry,
-    setState,
-    setRole,
-    startOnboarding,
-    updateOnboarding,
-    completeOnboarding,
-    cancelOnboarding,
-    acceptInvitation,
-    declineInvitation,
-    can,
-  }), [
-    actionPending,
-    actualState,
-    authLoading,
-    bootstrapQuery.error,
-    bootstrapQuery.isLoading,
-    can,
-    cancelOnboarding,
-    completeOnboarding,
-    declineInvitation,
-    devStateOverride,
-    membershipRole,
-    onboarding,
-    org,
-    pendingInvitation,
-    retry,
-    role,
-    session,
-    setRole,
-    setState,
-    startOnboarding,
-    updateOnboarding,
-    acceptInvitation,
-  ]);
+  const value = useMemo<AccessCtx>(
+    () => ({
+      state: devStateOverride ?? actualState,
+      role,
+      membershipRole,
+      org,
+      pendingInvitation,
+      onboarding,
+      loading: authLoading || (Boolean(session) && bootstrapQuery.isLoading) || actionPending,
+      error: (bootstrapQuery.error as ApiError | Error | null) ?? null,
+      retry,
+      setState,
+      setRole,
+      startOnboarding,
+      updateOnboarding,
+      completeOnboarding,
+      cancelOnboarding,
+      acceptInvitation,
+      declineInvitation,
+      can,
+    }),
+    [
+      actionPending,
+      actualState,
+      authLoading,
+      bootstrapQuery.error,
+      bootstrapQuery.isLoading,
+      can,
+      cancelOnboarding,
+      completeOnboarding,
+      declineInvitation,
+      devStateOverride,
+      membershipRole,
+      onboarding,
+      org,
+      pendingInvitation,
+      retry,
+      role,
+      session,
+      setRole,
+      setState,
+      startOnboarding,
+      updateOnboarding,
+      acceptInvitation,
+    ],
+  );
 
   return <AccessContext.Provider value={value}>{children}</AccessContext.Provider>;
 }

@@ -100,10 +100,7 @@ function EmploymentVerificationsPage() {
       .filter((record) => matchesVerificationSearch(record, search))
       .filter((record) => matchesVerificationStatusFilter(record, params.status))
       .filter((record) =>
-        matchesVerificationTargetFilter(
-          record,
-          params.org === "all" ? "all" : params.org,
-        ),
+        matchesVerificationTargetFilter(record, params.org === "all" ? "all" : params.org),
       )
       .filter((record) => {
         if (params.window === "all") return true;
@@ -128,7 +125,10 @@ function EmploymentVerificationsPage() {
   );
 
   const hasActiveFilters =
-    search.trim() !== "" || params.status !== "all" || params.org !== "all" || params.window !== "all";
+    search.trim() !== "" ||
+    params.status !== "all" ||
+    params.org !== "all" ||
+    params.window !== "all";
 
   const setFilter = (key: "status" | "org" | "window", value: string) =>
     nav({ search: (previous) => ({ ...previous, [key]: value }) });
@@ -154,7 +154,8 @@ function EmploymentVerificationsPage() {
   }
 
   if (verificationsQuery.error) {
-    const status = "status" in verificationsQuery.error ? verificationsQuery.error.status : undefined;
+    const status =
+      "status" in verificationsQuery.error ? verificationsQuery.error.status : undefined;
     return (
       <EmptyState
         icon={AlertTriangle}
@@ -179,8 +180,18 @@ function EmploymentVerificationsPage() {
       />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5 mb-6">
-        <StatCard label="New" value={counts.newCount} icon={Inbox} onClick={() => setFilter("status", "New")} />
-        <StatCard label="In Review" value={counts.inReview} icon={Clock} onClick={() => setFilter("status", "In Review")} />
+        <StatCard
+          label="New"
+          value={counts.newCount}
+          icon={Inbox}
+          onClick={() => setFilter("status", "New")}
+        />
+        <StatCard
+          label="In Review"
+          value={counts.inReview}
+          icon={Clock}
+          onClick={() => setFilter("status", "In Review")}
+        />
         <StatCard
           label="Clarification"
           value={counts.clarification}
@@ -261,7 +272,11 @@ function EmploymentVerificationsPage() {
         ) : filtered.length === 0 ? (
           <EmptyState
             icon={Inbox}
-            title={hasActiveFilters ? "No employment verifications match" : "No employment verifications yet"}
+            title={
+              hasActiveFilters
+                ? "No employment verifications match"
+                : "No employment verifications yet"
+            }
             description={
               hasActiveFilters
                 ? "Try clearing a filter or broadening your search."
@@ -288,7 +303,8 @@ function EmploymentVerificationsPage() {
                 <tbody className="divide-y divide-border/60">
                   {filtered.map((record) => {
                     const next = getVerificationNextAction(record);
-                    const organizationLabel = record.targetName ?? record.organizationName ?? "Unknown";
+                    const organizationLabel =
+                      record.targetName ?? record.organizationName ?? "Unknown";
                     const organizationMeta = record.targetEmail ?? record.organizationType ?? "—";
 
                     return (

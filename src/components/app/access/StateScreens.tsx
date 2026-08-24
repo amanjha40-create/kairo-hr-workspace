@@ -4,7 +4,18 @@ import { Badge } from "@/components/ui/badge";
 import { useAccess } from "@/lib/access-context";
 import { useAuth } from "@/lib/auth-context";
 import { useNavigate } from "@tanstack/react-router";
-import { Mail, ShieldAlert, Clock, ShieldOff, LockKeyhole, TimerReset, UserX, Loader2, RefreshCcw, AlertTriangle } from "lucide-react";
+import {
+  Mail,
+  ShieldAlert,
+  Clock,
+  ShieldOff,
+  LockKeyhole,
+  TimerReset,
+  UserX,
+  Loader2,
+  RefreshCcw,
+  AlertTriangle,
+} from "lucide-react";
 
 function Frame({ children }: { children: React.ReactNode }) {
   return (
@@ -32,19 +43,28 @@ export function InvitationPendingScreen() {
   if (!pendingInvitation) return null;
   return (
     <Frame>
-      <Icon><Mail className="h-6 w-6" /></Icon>
+      <Icon>
+        <Mail className="h-6 w-6" />
+      </Icon>
       <h1 className="text-2xl font-semibold tracking-tight">Organization invitation</h1>
       <p className="mt-2 text-sm text-muted-foreground">
         You've been invited to join a workspace on Kairo.
       </p>
       <div className="mt-6 rounded-2xl border border-border/70 bg-background p-5 text-left space-y-3">
         <Row label="Organization" value={pendingInvitation.orgName} />
-        <Row label="Invited role" value={<Badge variant="secondary">{pendingInvitation.invitedRole}</Badge>} />
+        <Row
+          label="Invited role"
+          value={<Badge variant="secondary">{pendingInvitation.invitedRole}</Badge>}
+        />
         <Row label="Invited by" value={pendingInvitation.invitedBy} />
       </div>
       <div className="mt-6 flex items-center gap-2 justify-center">
-        <Button variant="outline" onClick={() => void declineInvitation()} className="rounded-xl">Decline</Button>
-        <Button onClick={() => void acceptInvitation()} className="btn-premium rounded-xl">Accept invitation</Button>
+        <Button variant="outline" onClick={() => void declineInvitation()} className="rounded-xl">
+          Decline
+        </Button>
+        <Button onClick={() => void acceptInvitation()} className="btn-premium rounded-xl">
+          Accept invitation
+        </Button>
       </div>
     </Frame>
   );
@@ -53,7 +73,9 @@ export function InvitationPendingScreen() {
 export function WorkspaceLoadingScreen() {
   return (
     <Frame>
-      <Icon><Loader2 className="h-6 w-6 animate-spin" /></Icon>
+      <Icon>
+        <Loader2 className="h-6 w-6 animate-spin" />
+      </Icon>
       <h1 className="text-2xl font-semibold tracking-tight">Loading workspace</h1>
       <p className="mt-2 text-sm text-muted-foreground">
         We’re loading your organization access and workspace state.
@@ -71,7 +93,9 @@ export function WorkspaceErrorScreen({
 }) {
   return (
     <Frame>
-      <Icon><AlertTriangle className="h-6 w-6" /></Icon>
+      <Icon>
+        <AlertTriangle className="h-6 w-6" />
+      </Icon>
       <h1 className="text-2xl font-semibold tracking-tight">This workspace didn’t load</h1>
       <p className="mt-2 text-sm text-muted-foreground">
         {message ?? "Something went wrong while loading your organization workspace. Try again."}
@@ -91,7 +115,10 @@ export function VerificationPendingBanner() {
     <div className="border-b border-amber-500/30 bg-amber-500/[0.08] px-4 md:px-8 py-2.5 text-xs flex items-center gap-2">
       <Clock className="h-3.5 w-3.5 text-amber-700 dark:text-amber-500" />
       <span className="font-medium text-foreground">Organization verification pending.</span>
-      <span className="text-muted-foreground">You have full workspace access. Some external actions may show a verification badge until review completes.</span>
+      <span className="text-muted-foreground">
+        You have full workspace access. Some external actions may show a verification badge until
+        review completes.
+      </span>
     </div>
   );
 }
@@ -99,10 +126,13 @@ export function VerificationPendingBanner() {
 export function OrgSuspendedScreen() {
   return (
     <Frame>
-      <Icon><ShieldOff className="h-6 w-6" /></Icon>
+      <Icon>
+        <ShieldOff className="h-6 w-6" />
+      </Icon>
       <h1 className="text-2xl font-semibold tracking-tight">Workspace access suspended</h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        This organization's access to Kairo Trust Workspace is temporarily suspended. Workspace actions are blocked until access is restored.
+        This organization's access to Kairo Trust Workspace is temporarily suspended. Workspace
+        actions are blocked until access is restored.
       </p>
       <div className="mt-6 text-xs text-muted-foreground">
         Contact your organization Owner or reach out to Kairo support.
@@ -114,10 +144,13 @@ export function OrgSuspendedScreen() {
 export function MembershipSuspendedScreen() {
   return (
     <Frame>
-      <Icon><UserX className="h-6 w-6" /></Icon>
+      <Icon>
+        <UserX className="h-6 w-6" />
+      </Icon>
       <h1 className="text-2xl font-semibold tracking-tight">Your access is suspended</h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        Your membership in this organization has been suspended by an administrator. Other members are unaffected.
+        Your membership in this organization has been suspended by an administrator. Other members
+        are unaffected.
       </p>
       <div className="mt-6 text-xs text-muted-foreground">
         Ask an Owner or Admin to restore your access.
@@ -130,13 +163,18 @@ export function AccessDeniedScreen({ message }: { message?: string }) {
   const navigate = useNavigate();
   return (
     <Frame>
-      <Icon><LockKeyhole className="h-6 w-6" /></Icon>
+      <Icon>
+        <LockKeyhole className="h-6 w-6" />
+      </Icon>
       <h1 className="text-2xl font-semibold tracking-tight">You don't have permission</h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        {message ?? "You don't have permission to view this page. Contact an Owner or Admin if you need access."}
+        {message ??
+          "You don't have permission to view this page. Contact an Owner or Admin if you need access."}
       </p>
       <div className="mt-6">
-        <Button onClick={() => navigate({ to: "/app" })} className="btn-premium rounded-xl">Back to overview</Button>
+        <Button onClick={() => navigate({ to: "/app" })} className="btn-premium rounded-xl">
+          Back to overview
+        </Button>
       </div>
     </Frame>
   );
@@ -147,12 +185,19 @@ export function SessionExpiredScreen() {
   const navigate = useNavigate();
   return (
     <Frame>
-      <Icon><TimerReset className="h-6 w-6" /></Icon>
+      <Icon>
+        <TimerReset className="h-6 w-6" />
+      </Icon>
       <h1 className="text-2xl font-semibold tracking-tight">Session expired</h1>
-      <p className="mt-2 text-sm text-muted-foreground">Your session has expired. Sign in again to continue.</p>
+      <p className="mt-2 text-sm text-muted-foreground">
+        Your session has expired. Sign in again to continue.
+      </p>
       <div className="mt-6">
         <Button
-          onClick={async () => { await signOut(); navigate({ to: "/login" }); }}
+          onClick={async () => {
+            await signOut();
+            navigate({ to: "/login" });
+          }}
           className="btn-premium rounded-xl"
         >
           Sign in again

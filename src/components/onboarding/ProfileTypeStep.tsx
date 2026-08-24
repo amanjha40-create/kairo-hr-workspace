@@ -25,7 +25,8 @@ const profiles = [
     key: "gig" as const,
     title: "Gig Worker / Delivery Partner",
     icon: Bike,
-    description: "Active on platforms such as Uber, Swiggy, Zomato, Porter, Rapido and similar networks.",
+    description:
+      "Active on platforms such as Uber, Swiggy, Zomato, Porter, Rapido and similar networks.",
     details: [
       "Platform activity verification",
       "Earnings consistency indicators",
@@ -92,7 +93,8 @@ export function ProfileTypeStep({ value, onChange }: Props) {
       </div>
 
       <div className="mt-6 rounded-2xl border border-border bg-card/70 p-4 text-sm text-muted-foreground text-center">
-        Your Trust Profile is built differently depending on how you work. Select the option that best reflects your professional identity.
+        Your Trust Profile is built differently depending on how you work. Select the option that
+        best reflects your professional identity.
       </div>
 
       <div className="mt-6 grid sm:grid-cols-2 gap-3">
@@ -113,10 +115,14 @@ export function ProfileTypeStep({ value, onChange }: Props) {
               )}
             >
               <div className="flex items-start gap-3">
-                <div className={cn(
-                  "h-10 w-10 rounded-xl flex items-center justify-center shrink-0 transition-colors",
-                  isSelected ? "bg-primary text-primary-foreground" : "bg-foreground/[0.05] text-foreground",
-                )}>
+                <div
+                  className={cn(
+                    "h-10 w-10 rounded-xl flex items-center justify-center shrink-0 transition-colors",
+                    isSelected
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-foreground/[0.05] text-foreground",
+                  )}
+                >
                   <p.icon className="h-5 w-5" />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -128,7 +134,9 @@ export function ProfileTypeStep({ value, onChange }: Props) {
                       </span>
                     )}
                   </div>
-                  <p className="mt-1.5 text-xs text-muted-foreground leading-relaxed">{p.description}</p>
+                  <p className="mt-1.5 text-xs text-muted-foreground leading-relaxed">
+                    {p.description}
+                  </p>
 
                   <div
                     className={cn(
@@ -137,7 +145,9 @@ export function ProfileTypeStep({ value, onChange }: Props) {
                     )}
                   >
                     <div className="overflow-hidden">
-                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">What gets verified</div>
+                      <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+                        What gets verified
+                      </div>
                       <ul className="mt-2 space-y-1.5">
                         {p.details.map((d) => (
                           <li key={d} className="flex items-start gap-2 text-xs">
@@ -176,7 +186,8 @@ export function ProfileTypeStep({ value, onChange }: Props) {
       </div>
 
       <p className="mt-5 text-xs text-center text-muted-foreground">
-        Your profile type only helps personalize your verification journey. You can add additional records and profile types later.
+        Your profile type only helps personalize your verification journey. You can add additional
+        records and profile types later.
       </p>
     </div>
   );

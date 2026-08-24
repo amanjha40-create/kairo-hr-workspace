@@ -236,9 +236,9 @@ function AppLayout() {
       navigate({ to: "/login" });
       return;
     }
-    // NOTE: /onboarding is the candidate Trust Passport flow. The Trust
-    // Workspace uses /app/setup for organization onboarding, which AppRoot
-    // gates via access state. Do NOT redirect workspace users to /onboarding.
+    // NOTE: HR onboarding is owned by /app/setup and backend bootstrap state.
+    // The legacy /onboarding route only redirects into the canonical setup
+    // flow and no longer owns workspace onboarding itself.
   }, [session, loading, navigate]);
 
   useEffect(() => {

@@ -22,10 +22,11 @@ function SetupRoute() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    if (loading) return;
     if (state !== "no_org" && state !== "setup_incomplete") {
       navigate({ to: "/app", replace: true });
     }
-  }, [state, navigate]);
+  }, [loading, state, navigate]);
 
   if (loading) {
     return (

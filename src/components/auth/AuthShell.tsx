@@ -28,9 +28,7 @@ export function AuthShell({
               <h1 className="text-[28px] sm:text-3xl font-semibold tracking-tight text-foreground">
                 {title}
               </h1>
-              {subtitle && (
-                <p className="mt-2 text-sm text-muted-foreground">{subtitle}</p>
-              )}
+              {subtitle && <p className="mt-2 text-sm text-muted-foreground">{subtitle}</p>}
             </div>
             {children}
             {footer && (
@@ -56,8 +54,12 @@ export function AuthShell({
             </div>
           </div>
           <div className="text-xs text-muted-foreground flex items-center gap-4">
-            <a href={`${marketingWebsiteUrl}/privacy`} className="hover:text-foreground">Privacy</a>
-            <a href={`${marketingWebsiteUrl}/terms`} className="hover:text-foreground">Terms</a>
+            <a href={`${marketingWebsiteUrl}/privacy`} className="hover:text-foreground">
+              Privacy
+            </a>
+            <a href={`${marketingWebsiteUrl}/terms`} className="hover:text-foreground">
+              Terms
+            </a>
           </div>
         </aside>
       </div>

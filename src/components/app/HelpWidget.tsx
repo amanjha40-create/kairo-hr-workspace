@@ -8,18 +8,27 @@ export function HelpWidget() {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <button className="fixed bottom-5 right-5 z-40 h-11 w-11 rounded-full bg-foreground text-background shadow-lg hover:scale-105 transition-transform flex items-center justify-center" aria-label="Help">
+        <button
+          className="fixed bottom-5 right-5 z-40 h-11 w-11 rounded-full bg-foreground text-background shadow-lg hover:scale-105 transition-transform flex items-center justify-center"
+          aria-label="Help"
+        >
           <HelpCircle className="h-5 w-5" />
         </button>
       </PopoverTrigger>
       <PopoverContent align="end" side="top" className="w-72 rounded-2xl p-2">
         <div className="p-3">
           <div className="text-sm font-semibold">Need a hand?</div>
-          <p className="text-xs text-muted-foreground mt-0.5">First time here? Start with the tour or search docs.</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            First time here? Start with the tour or search docs.
+          </p>
         </div>
         <div className="space-y-0.5">
           <Row icon={BookOpen} label="Documentation" href={`${marketingWebsiteUrl}/help-center`} />
-          <Row icon={MessageCircle} label="Contact support" href={`${marketingWebsiteUrl}/contact`} />
+          <Row
+            icon={MessageCircle}
+            label="Contact support"
+            href={`${marketingWebsiteUrl}/contact`}
+          />
           <Row icon={Keyboard} label="Keyboard shortcuts" hint="/ · N · G" />
         </div>
       </PopoverContent>
@@ -27,7 +36,17 @@ export function HelpWidget() {
   );
 }
 
-function Row({ icon: Icon, label, href, hint }: { icon: React.ElementType; label: string; href?: string; hint?: string }) {
+function Row({
+  icon: Icon,
+  label,
+  href,
+  hint,
+}: {
+  icon: React.ElementType;
+  label: string;
+  href?: string;
+  hint?: string;
+}) {
   const inner = (
     <div className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-foreground/[0.04] text-sm cursor-pointer">
       <Icon className="h-4 w-4 text-muted-foreground" />

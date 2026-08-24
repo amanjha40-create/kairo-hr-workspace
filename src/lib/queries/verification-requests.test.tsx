@@ -19,6 +19,7 @@ vi.mock("@/lib/api/verification-requests", () => ({
   getVerificationRequestEvidence: vi.fn(),
   getVerificationRequestTimeline: vi.fn(),
   listVerificationRequests: vi.fn(),
+  markVerificationUnableToVerify: vi.fn(),
   rejectVerificationRequest: vi.fn(),
   requestVerificationClarification: vi.fn(),
   updateVerificationInternalNote: vi.fn(),

@@ -8,10 +8,7 @@ function getGtag(): GtagFn | null {
   return (window as unknown as { gtag?: GtagFn }).gtag ?? null;
 }
 
-export function trackEvent(
-  event: string,
-  params: Record<string, unknown> = {},
-) {
+export function trackEvent(event: string, params: Record<string, unknown> = {}) {
   const gtag = getGtag();
   if (!gtag) return;
   gtag("event", event, params);
@@ -23,7 +20,6 @@ export function trackPageview(path: string, title?: string) {
   gtag("event", "page_view", {
     page_path: path,
     page_title: title ?? (typeof document !== "undefined" ? document.title : ""),
-    page_location:
-      typeof window !== "undefined" ? window.location.href : undefined,
+    page_location: typeof window !== "undefined" ? window.location.href : undefined,
   });
 }

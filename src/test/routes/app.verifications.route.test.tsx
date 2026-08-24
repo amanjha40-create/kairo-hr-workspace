@@ -30,13 +30,7 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 vi.mock("@/components/app/primitives", () => ({
-  PageHeader: ({
-    title,
-    description,
-  }: {
-    title: string;
-    description?: string;
-  }) => (
+  PageHeader: ({ title, description }: { title: string; description?: string }) => (
     <div>
       <h1>{title}</h1>
       {description ? <p>{description}</p> : null}
@@ -58,7 +52,15 @@ vi.mock("@/components/app/primitives", () => ({
       {action ? <button onClick={action.onClick}>{action.label}</button> : null}
     </div>
   ),
-  StatCard: ({ label, value, onClick }: { label: string; value: number | string; onClick?: () => void }) => (
+  StatCard: ({
+    label,
+    value,
+    onClick,
+  }: {
+    label: string;
+    value: number | string;
+    onClick?: () => void;
+  }) => (
     <button onClick={onClick}>
       {label}: {value}
     </button>

@@ -20,6 +20,8 @@ const accessState = {
     domain?: string;
     role?: string;
   },
+  org: null as null | { publicId: string },
+  role: "Viewer" as const,
   updateOnboarding: updateOnboardingSpy,
   completeOnboarding: completeOnboardingSpy,
   setState: setStateSpy,
@@ -84,11 +86,7 @@ describe("OrgOnboarding", () => {
     expect(organizationTypeSelect).toHaveTextContent("Employer");
 
     await user.click(organizationTypeSelect);
-    await user.click(await screen.findByRole("option", { name: "Other" }));
-
-    await waitFor(() => {
-      expect(screen.getByRole("combobox")).toHaveTextContent("Other");
-    });
+    expect(await screen.findByRole("option", { name: "Employer" })).toBeInTheDocument();
 
     const consoleErrorMessages = consoleErrorSpy.mock.calls
       .flatMap((call) => call)
@@ -102,5 +100,26 @@ describe("OrgOnboarding", () => {
     ).toBe(false);
 
     consoleErrorSpy.mockRestore();
+  });
+
+  it("keeps setup ownership on the backend-owned owner path", async () => {
+    const user = userEvent.setup();
+
+    render(<OrgOnboarding />);
+
+    expect(
+      screen.queryByRole("button", { name: /accept organization invitation/i }),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /set up organization/i }));
+    await user.type(screen.getByPlaceholderText("Acme Inc."), "Acme");
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+    await user.type(screen.getByPlaceholderText("you@company.com"), "owner@acme.test");
+    await user.type(screen.getByPlaceholderText("company.com"), "acme.test");
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+
+    expect(screen.getByText("You're the first workspace owner.")).toBeInTheDocument();
+    expect(screen.getByText("Owner")).toBeInTheDocument();
+    expect(screen.getByText(/additional workspace roles become available/i)).toBeInTheDocument();
   });
 });
