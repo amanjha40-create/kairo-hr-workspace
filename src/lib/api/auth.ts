@@ -11,6 +11,10 @@ export interface ForgotPasswordResponse {
   message: string;
 }
 
+export interface ResetPasswordResponse {
+  message: string;
+}
+
 export interface OAuthAuthUrlResponse {
   provider: string;
   auth_url: string;
@@ -29,6 +33,18 @@ export function requestPasswordReset(email: string) {
     method: "POST",
     auth: false,
     body: { email },
+  });
+}
+
+export function resetPassword(token: string, newPassword: string, confirmPassword: string) {
+  return apiRequest<ResetPasswordResponse>("/api/v1/auth/reset-password", {
+    method: "POST",
+    auth: false,
+    body: {
+      token,
+      new_password: newPassword,
+      confirm_password: confirmPassword,
+    },
   });
 }
 

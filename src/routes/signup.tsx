@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { getMarketingWebsiteUrl } from "@/lib/app-config";
+import { getMarketingWebsiteUrl, isGoogleSsoEnabled } from "@/lib/app-config";
 import { useAuth } from "@/lib/auth-context";
 import type { AuthUser } from "@/lib/api/auth-session";
 import { storeAuthSession, toAuthSession } from "@/lib/api/auth-session";
@@ -48,6 +48,7 @@ function SignupPage() {
   const navigate = useNavigate();
   const marketingWebsiteUrl = getMarketingWebsiteUrl();
   const { session, signInWithGoogle, completeGoogleSignIn } = useAuth();
+  const googleSsoEnabled = isGoogleSsoEnabled();
   const persistedDraft = useMemo(() => readOrganizationSignupDraft(), []);
   const [loading, setLoading] = useState(false);
   const [oauthLoading, setOauthLoading] = useState(false);
@@ -82,6 +83,8 @@ function SignupPage() {
   }, [navigate, session]);
 
   useEffect(() => {
+    if (!googleSsoEnabled) return;
+
     const params = new URLSearchParams(window.location.search);
     const code = params.get("code");
     if (!code || session) return;
@@ -99,7 +102,7 @@ function SignupPage() {
       .finally(() => {
         setOauthLoading(false);
       });
-  }, [completeGoogleSignIn, navigate, session]);
+  }, [completeGoogleSignIn, googleSsoEnabled, navigate, session]);
 
   const onChange = (k: keyof typeof form) => (v: string) =>
     setForm((current) => ({ ...current, [k]: v }));
@@ -214,6 +217,8 @@ function SignupPage() {
   }
 
   async function handleGoogle() {
+    if (!googleSsoEnabled) return;
+
     setOauthLoading(true);
     try {
       await signInWithGoogle();
@@ -248,26 +253,28 @@ function SignupPage() {
         </>
       }
     >
-      <div className="space-y-3">
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full h-11 rounded-xl"
-          onClick={handleGoogle}
-          disabled={loading || oauthLoading || verifying}
-        >
-          {oauthLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GoogleIcon />}
-          Continue with Google
-        </Button>
-        <div className="relative my-5">
-          <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t border-border/70" />
-          </div>
-          <div className="relative flex justify-center text-xs uppercase tracking-wider">
-            <span className="bg-background px-2 text-muted-foreground">or use work email</span>
+      {googleSsoEnabled ? (
+        <div className="space-y-3">
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full h-11 rounded-xl"
+            onClick={handleGoogle}
+            disabled={loading || oauthLoading || verifying}
+          >
+            {oauthLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GoogleIcon />}
+            Continue with Google
+          </Button>
+          <div className="relative my-5">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-border/70" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase tracking-wider">
+              <span className="bg-background px-2 text-muted-foreground">or use work email</span>
+            </div>
           </div>
         </div>
-      </div>
+      ) : null}
 
       {step === "verify" ? (
         <form onSubmit={handleVerify} className="space-y-3.5">
