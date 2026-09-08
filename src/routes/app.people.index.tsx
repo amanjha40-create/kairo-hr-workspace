@@ -4,6 +4,7 @@ import { z } from "zod";
 import { useMemo } from "react";
 import { EmptyState, PageHeader, SectionCard, TableSkeleton } from "@/components/app/primitives";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -43,9 +44,11 @@ import {
   mapVerificationFilterToBackend,
 } from "@/lib/organization-people";
 import { useOrganizationPeopleDirectoryQuery } from "@/lib/queries/organization-people";
+import { useRosterEmployeesQuery } from "@/lib/queries/organization-roster-imports";
 import {
   AlertTriangle,
   Bell,
+  FileSpreadsheet,
   FileSearch,
   MoreHorizontal,
   Plus,
@@ -112,9 +115,10 @@ export const Route = createFileRoute("/app/people/")({
 
 function PeoplePage() {
   const { setInviteOpen, search: globalSearch, setSearch } = useDashboard();
-  const { can, org } = useAccess();
+  const { can, membershipRole, org } = useAccess();
   const canInvite = can("invite_candidate");
   const canModify = can("modify_person");
+  const canManageRoster = membershipRole === "owner" || membershipRole === "admin";
   const s = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
 
@@ -134,12 +138,20 @@ function PeoplePage() {
     sort_by: "last_activity_at",
     sort_order: "desc",
   });
+  const rosterEmployeesQuery = useRosterEmployeesQuery(
+    org?.publicId,
+    globalSearch.trim(),
+    canManageRoster,
+  );
 
   function update(patch: Partial<typeof s>) {
     navigate({ search: (prev) => ({ ...prev, ...patch }) });
   }
 
   const rows = directoryQuery.data?.items ?? [];
+  const rosterPersonIds = new Set(
+    (rosterEmployeesQuery.data?.items ?? []).map((employee) => employee.organization_person_id),
+  );
   const addedByOptions = useMemo(
     () =>
       Array.from(
@@ -221,17 +233,32 @@ function PeoplePage() {
         title="People"
         description="View candidates and professionals who have shared information with your organization."
         actions={
-          canInvite ? (
-            <Button
-              onClick={() => setInviteOpen(true)}
-              className="btn-premium rounded-xl"
-              size="sm"
-            >
-              <Plus className="h-4 w-4 mr-1.5" /> Invite Candidate
-            </Button>
+          canInvite || canManageRoster ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {canManageRoster ? (
+                <Button variant="outline" className="rounded-xl" size="sm" asChild>
+                  <Link to="/app/people/imports">
+                    <FileSpreadsheet className="h-4 w-4 mr-1.5" /> Import Employees
+                  </Link>
+                </Button>
+              ) : null}
+              {canInvite ? (
+                <Button
+                  onClick={() => setInviteOpen(true)}
+                  className="btn-premium rounded-xl"
+                  size="sm"
+                >
+                  <Plus className="h-4 w-4 mr-1.5" /> Invite Candidate
+                </Button>
+              ) : null}
+            </div>
           ) : null
         }
       />
+      <div className="mb-4 rounded-xl border border-info/20 bg-info/[0.06] px-4 py-3 text-xs leading-relaxed text-muted-foreground">
+        Imported employee records are organization-provided. They are not verified, trusted, or
+        approved by Kairo unless a separate verification is completed.
+      </div>
       {!canInvite ? (
         <PermissionDenied
           className="mb-4"
@@ -374,6 +401,7 @@ function PeoplePage() {
                           </div>
                           <div className="min-w-0">
                             <div className="text-sm font-medium truncate">{person.fullName}</div>
+                            {rosterPersonIds.has(person.publicId) ? <RosterSourceBadge /> : null}
                             <div className="text-[11px] text-muted-foreground truncate">
                               {person.email || "No email shared"}
                             </div>
@@ -425,6 +453,7 @@ function PeoplePage() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="text-sm font-medium truncate">{person.fullName}</div>
+                      {rosterPersonIds.has(person.publicId) ? <RosterSourceBadge /> : null}
                       <div className="text-[11px] text-muted-foreground truncate">
                         {person.email || "No email shared"}
                       </div>
@@ -471,6 +500,18 @@ function PeoplePage() {
         )}
       </SectionCard>
     </div>
+  );
+}
+
+function RosterSourceBadge() {
+  return (
+    <Badge
+      variant="outline"
+      className="mt-1 border-info/30 bg-info/[0.06] px-1.5 py-0 text-[9px] font-medium text-info-foreground"
+      title="Organization-provided record. Not verified or approved by Kairo."
+    >
+      Organization-provided · Not Kairo-verified
+    </Badge>
   );
 }
 
