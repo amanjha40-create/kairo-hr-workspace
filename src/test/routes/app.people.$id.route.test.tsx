@@ -8,8 +8,13 @@ const addNoteSpy = vi.fn();
 const updateNoteSpy = vi.fn();
 const deleteNoteSpy = vi.fn();
 
-const accessState: { org: { publicId: string } | null; can: (action: string) => boolean } = {
+const accessState: {
+  org: { publicId: string } | null;
+  membershipRole: "owner" | "admin" | "member";
+  can: (action: string) => boolean;
+} = {
   org: { publicId: "org_123" },
+  membershipRole: "owner",
   can: (action: string) => action === "modify_person",
 };
 
@@ -134,6 +139,14 @@ vi.mock("@/lib/queries/organization-people", () => ({
   }),
 }));
 
+vi.mock("@/lib/queries/organization-roster-imports", () => ({
+  useRosterEmployeesQuery: () => ({
+    data: { items: [{ organization_person_id: "person_123" }] },
+    isPending: false,
+    error: null,
+  }),
+}));
+
 const { Route } = await import("../../routes/app.people.$id");
 const PersonDetail = Route.options.component as ComponentType;
 
@@ -144,6 +157,7 @@ describe("Person detail page", () => {
     updateNoteSpy.mockReset();
     deleteNoteSpy.mockReset();
     accessState.org = { publicId: "org_123" };
+    accessState.membershipRole = "owner";
     accessState.can = (action: string) => action === "modify_person";
     detailQueryState.data = makePersonDetailRecord();
     detailQueryState.isPending = false;
@@ -166,6 +180,7 @@ describe("Person detail page", () => {
     expect(screen.getByText("Employment Verification")).toBeInTheDocument();
     expect(screen.getByText("offer-letter.pdf")).toBeInTheDocument();
     expect(screen.getByText("Strong match on submitted evidence.")).toBeInTheDocument();
+    expect(screen.getByText(/organization-provided · not Kairo-verified/i)).toBeInTheDocument();
   });
 
   it("preserves the restricted passport state from backend detail", () => {

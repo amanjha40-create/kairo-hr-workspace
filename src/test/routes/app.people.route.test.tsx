@@ -17,8 +17,13 @@ const refetchFilteredSpy = vi.fn();
 const setInviteOpenSpy = vi.fn();
 const setSearchSpy = vi.fn();
 
-const accessState: { org: { publicId: string } | null; can: (action: string) => boolean } = {
+const accessState: {
+  org: { publicId: string } | null;
+  membershipRole: "owner" | "admin" | "member";
+  can: (action: string) => boolean;
+} = {
   org: { publicId: "org_123" },
+  membershipRole: "owner",
   can: (action: string) => action === "invite_candidate" || action === "modify_person",
 };
 
@@ -34,6 +39,14 @@ const filteredPeopleQueryState = {
   isPending: false,
   error: null as unknown,
   refetch: refetchFilteredSpy,
+};
+
+const rosterEmployeesQueryState = {
+  data: {
+    items: [{ organization_person_id: "person_123" }],
+  },
+  isPending: false,
+  error: null,
 };
 
 vi.mock("@tanstack/react-router", () => ({
@@ -162,6 +175,10 @@ vi.mock("@/lib/queries/organization-people", () => ({
       : allPeopleQueryState,
 }));
 
+vi.mock("@/lib/queries/organization-roster-imports", () => ({
+  useRosterEmployeesQuery: () => rosterEmployeesQueryState,
+}));
+
 const { Route } = await import("../../routes/app.people.index");
 const PeoplePage = Route.options.component as ComponentType;
 
@@ -181,6 +198,7 @@ describe("People directory page", () => {
     setInviteOpenSpy.mockReset();
     setSearchSpy.mockReset();
     accessState.org = { publicId: "org_123" };
+    accessState.membershipRole = "owner";
     accessState.can = (action: string) =>
       action === "invite_candidate" || action === "modify_person";
     allPeopleQueryState.data = makePeopleDirectoryResponse();
@@ -227,6 +245,14 @@ describe("People directory page", () => {
     expect(screen.getAllByText("Aman Joshi").length).toBeGreaterThan(0);
     expect(screen.getAllByText("aman@example.com").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Candidate").length).toBeGreaterThan(0);
+    expect(screen.getByText("Import Employees")).toBeInTheDocument();
+    expect(screen.getAllByText(/organization-provided/i).length).toBeGreaterThan(0);
+  });
+
+  it("does not offer roster import controls to a normal member", () => {
+    accessState.membershipRole = "member";
+    render(<PeoplePage />);
+    expect(screen.queryByText("Import Employees")).not.toBeInTheDocument();
   });
 
   it("shows retry on backend error and refetches both queries", () => {

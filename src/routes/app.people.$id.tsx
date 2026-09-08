@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { EmptyState, PageHeader, SectionCard, TableSkeleton } from "@/components/app/primitives";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAccess } from "@/lib/access-context";
@@ -27,6 +28,7 @@ import {
   useOrganizationPersonDetailQuery,
   useUpdateOrganizationPersonNoteMutation,
 } from "@/lib/queries/organization-people";
+import { useRosterEmployeesQuery } from "@/lib/queries/organization-roster-imports";
 import {
   ArrowLeft,
   ArrowRight,
@@ -83,9 +85,15 @@ function PersonNotFound() {
 
 function PersonDetail() {
   const { id } = Route.useParams();
-  const { can, org } = useAccess();
+  const { can, membershipRole, org } = useAccess();
   const canModify = can("modify_person");
+  const canManageRoster = membershipRole === "owner" || membershipRole === "admin";
   const detailQuery = useOrganizationPersonDetailQuery(org?.publicId, id);
+  const rosterEmployeesQuery = useRosterEmployeesQuery(
+    org?.publicId,
+    detailQuery.data?.email || detailQuery.data?.fullName || "",
+    canManageRoster && Boolean(detailQuery.data),
+  );
   const addNoteMutation = useAddOrganizationPersonNoteMutation();
   const updateNoteMutation = useUpdateOrganizationPersonNoteMutation();
   const deleteNoteMutation = useDeleteOrganizationPersonNoteMutation();
@@ -157,6 +165,9 @@ function PersonDetail() {
   if (!person) {
     return <PersonNotFound />;
   }
+  const isRosterEmployee = rosterEmployeesQuery.data?.items.some(
+    (employee) => employee.organization_person_id === person.publicId,
+  );
 
   return (
     <div>
@@ -185,6 +196,15 @@ function PersonDetail() {
       />
 
       <div className="flex flex-wrap items-center gap-2 mb-8">
+        {isRosterEmployee ? (
+          <Badge
+            variant="outline"
+            className="border-info/30 bg-info/[0.06] text-info-foreground"
+            title="Organization-provided record. Not verified or approved by Kairo."
+          >
+            Organization-provided · Not Kairo-verified
+          </Badge>
+        ) : null}
         <RelationshipPill value={person.relationship} />
         <InvitationPill value={person.invitationStatus} />
         <VerificationPill value={person.verificationStatus} />

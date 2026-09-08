@@ -30,6 +30,8 @@ import { Route as AppPeopleIndexRouteImport } from './routes/app.people.index'
 import { Route as AppVerificationsIdRouteImport } from './routes/app.verifications.$id'
 import { Route as AppPeopleIdRouteImport } from './routes/app.people.$id'
 import { Route as AppInvitationsIdRouteImport } from './routes/app.invitations.$id'
+import { Route as AppPeopleImportsIndexRouteImport } from './routes/app.people.imports.index'
+import { Route as AppPeopleImportsIdRouteImport } from './routes/app.people.imports.$id'
 
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
@@ -136,6 +138,16 @@ const AppInvitationsIdRoute = AppInvitationsIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => AppInvitationsRoute,
 } as any)
+const AppPeopleImportsIndexRoute = AppPeopleImportsIndexRouteImport.update({
+  id: '/people/imports/',
+  path: '/people/imports/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPeopleImportsIdRoute = AppPeopleImportsIdRouteImport.update({
+  id: '/people/imports/$id',
+  path: '/people/imports/$id',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -159,6 +171,8 @@ export interface FileRoutesByFullPath {
   '/app/verifications/$id': typeof AppVerificationsIdRoute
   '/app/people/': typeof AppPeopleIndexRoute
   '/app/verifications/': typeof AppVerificationsIndexRoute
+  '/app/people/imports/$id': typeof AppPeopleImportsIdRoute
+  '/app/people/imports/': typeof AppPeopleImportsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -181,6 +195,8 @@ export interface FileRoutesByTo {
   '/app/verifications/$id': typeof AppVerificationsIdRoute
   '/app/people': typeof AppPeopleIndexRoute
   '/app/verifications': typeof AppVerificationsIndexRoute
+  '/app/people/imports/$id': typeof AppPeopleImportsIdRoute
+  '/app/people/imports': typeof AppPeopleImportsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -205,6 +221,8 @@ export interface FileRoutesById {
   '/app/verifications/$id': typeof AppVerificationsIdRoute
   '/app/people/': typeof AppPeopleIndexRoute
   '/app/verifications/': typeof AppVerificationsIndexRoute
+  '/app/people/imports/$id': typeof AppPeopleImportsIdRoute
+  '/app/people/imports/': typeof AppPeopleImportsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -230,6 +248,8 @@ export interface FileRouteTypes {
     | '/app/verifications/$id'
     | '/app/people/'
     | '/app/verifications/'
+    | '/app/people/imports/$id'
+    | '/app/people/imports/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -252,6 +272,8 @@ export interface FileRouteTypes {
     | '/app/verifications/$id'
     | '/app/people'
     | '/app/verifications'
+    | '/app/people/imports/$id'
+    | '/app/people/imports'
   id:
     | '__root__'
     | '/'
@@ -275,6 +297,8 @@ export interface FileRouteTypes {
     | '/app/verifications/$id'
     | '/app/people/'
     | '/app/verifications/'
+    | '/app/people/imports/$id'
+    | '/app/people/imports/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -436,6 +460,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppInvitationsIdRouteImport
       parentRoute: typeof AppInvitationsRoute
     }
+    '/app/people/imports/': {
+      id: '/app/people/imports/'
+      path: '/people/imports'
+      fullPath: '/app/people/imports/'
+      preLoaderRoute: typeof AppPeopleImportsIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/people/imports/$id': {
+      id: '/app/people/imports/$id'
+      path: '/people/imports/$id'
+      fullPath: '/app/people/imports/$id'
+      preLoaderRoute: typeof AppPeopleImportsIdRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
@@ -465,6 +503,8 @@ interface AppRouteChildren {
   AppVerificationsIdRoute: typeof AppVerificationsIdRoute
   AppPeopleIndexRoute: typeof AppPeopleIndexRoute
   AppVerificationsIndexRoute: typeof AppVerificationsIndexRoute
+  AppPeopleImportsIdRoute: typeof AppPeopleImportsIdRoute
+  AppPeopleImportsIndexRoute: typeof AppPeopleImportsIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -481,6 +521,8 @@ const AppRouteChildren: AppRouteChildren = {
   AppVerificationsIdRoute: AppVerificationsIdRoute,
   AppPeopleIndexRoute: AppPeopleIndexRoute,
   AppVerificationsIndexRoute: AppVerificationsIndexRoute,
+  AppPeopleImportsIdRoute: AppPeopleImportsIdRoute,
+  AppPeopleImportsIndexRoute: AppPeopleImportsIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
