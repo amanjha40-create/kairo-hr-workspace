@@ -70,6 +70,37 @@ export const rosterRows: RosterPreviewRow[] = [
     application_errors: [],
     applied_at: null,
   },
+  {
+    row_number: 5,
+    raw_values: { "Employee ID": "EMP-3", "Full Name": "Grace Hopper" },
+    normalized_values: {
+      employee_id: "EMP-3",
+      full_name: "Grace Hopper",
+      work_email: "grace@example.com",
+      department: "Engineering",
+    },
+    disposition: "valid_update",
+    validation_errors: [],
+    primary_identifier: "EMP-3",
+    matched_organization_person_id: "33333333-3333-4333-8333-333333333333",
+    result_organization_person_id: null,
+    application_status: "pending",
+    application_errors: [],
+    applied_at: null,
+  },
+  {
+    row_number: 6,
+    raw_values: { "Employee ID": "", "Full Name": "" },
+    normalized_values: {},
+    disposition: "skipped",
+    validation_errors: [],
+    primary_identifier: null,
+    matched_organization_person_id: null,
+    result_organization_person_id: null,
+    application_status: "ignored",
+    application_errors: [],
+    applied_at: null,
+  },
 ];
 
 export function makeRosterPreview(

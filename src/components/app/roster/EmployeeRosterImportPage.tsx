@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { format, formatDistanceToNow } from "date-fns";
 import {
   AlertTriangle,
@@ -37,6 +37,13 @@ export function EmployeeRosterImportPage() {
   const [dragging, setDragging] = useState(false);
   const historyQuery = useRosterImportsQuery(org?.publicId, 1);
   const uploadMutation = useUploadEmployeeRosterMutation();
+  const openedTracked = useRef(false);
+
+  useEffect(() => {
+    if (openedTracked.current || !org || !canManageRoster) return;
+    openedTracked.current = true;
+    trackEvent("roster_import_opened", { roster_type: "employee" });
+  }, [canManageRoster, org]);
 
   if (!org) {
     return (
@@ -67,14 +74,11 @@ export function EmployeeRosterImportPage() {
 
   async function upload() {
     if (!file || !org || uploadMutation.isPending) return;
-    trackEvent("roster_import_started", {
-      roster_type: "employee",
-      source_format: file.name.toLowerCase().endsWith(".xlsx") ? "xlsx" : "csv",
-    });
     try {
       const record = await uploadMutation.mutateAsync({ orgPublicId: org.publicId, file });
-      trackEvent("roster_preview_ready", {
+      trackEvent("roster_file_uploaded", {
         roster_type: "employee",
+        source_format: record.source_format,
         state: record.state,
         total_rows: record.counts.total_rows,
       });
@@ -144,7 +148,9 @@ export function EmployeeRosterImportPage() {
                 {file ? file.name : "Drop a roster here, or choose a file"}
               </span>
               <span className="mt-1.5 block text-xs text-muted-foreground">
-                CSV or XLSX · up to 5 MB · up to 10,000 rows and 64 columns
+                {file
+                  ? `${file.name.toLowerCase().endsWith(".xlsx") ? "XLSX" : "CSV"} · ${formatFileSize(file.size)}`
+                  : "CSV or XLSX · up to 5 MB · up to 10,000 rows and 64 columns"}
               </span>
             </button>
 
@@ -262,7 +268,13 @@ export function EmployeeRosterImportPage() {
                   <span className="flex flex-wrap items-center gap-2">
                     <Badge variant="outline">{rosterStateLabel(record.state)}</Badge>
                     <span className="text-xs text-muted-foreground">
-                      {record.counts.total_rows} rows
+                      {record.counts.total_rows} rows · {record.counts.created} added ·{" "}
+                      {record.counts.updated} updated ·{" "}
+                      {record.counts.invalid +
+                        record.counts.duplicate +
+                        record.counts.skipped +
+                        record.counts.failed}{" "}
+                      issues
                     </span>
                     <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                       <Clock3 className="h-3.5 w-3.5" />
@@ -278,4 +290,10 @@ export function EmployeeRosterImportPage() {
       </div>
     </div>
   );
+}
+
+function formatFileSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
