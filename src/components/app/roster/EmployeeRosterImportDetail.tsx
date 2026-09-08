@@ -272,6 +272,11 @@ function RosterMappingStep({
         })),
       });
       setMapping(updated.mapping.mappings);
+      trackEvent("roster_mapping_updated", {
+        roster_type: "employee",
+        mapped_columns: Object.keys(updated.mapping.mappings).length,
+        state: updated.state,
+      });
       if (
         updated.mapping.missing_required_mappings.length === 0 &&
         updated.state === "ready_for_review"
@@ -398,16 +403,16 @@ function RosterPreviewStep({
   async function confirm() {
     if (confirmMutation.isPending || confirmationInFlight.current) return;
     confirmationInFlight.current = true;
+    trackEvent("roster_confirm_clicked", {
+      roster_type: "employee",
+      valid_new: record.counts.valid_new,
+      valid_update: record.counts.valid_update,
+      attention: rosterAttentionCount(record),
+    });
     try {
-      const completed = await confirmMutation.mutateAsync({
+      await confirmMutation.mutateAsync({
         orgPublicId,
         importId: record.import_id,
-      });
-      trackEvent("roster_confirmed", {
-        roster_type: "employee",
-        state: completed.state,
-        created: completed.counts.created,
-        updated: completed.counts.updated,
       });
     } catch {
       // The backend confirmation error is rendered below.
@@ -507,9 +512,12 @@ function RosterPreviewStep({
             <AlertDialogHeader>
               <AlertDialogTitle>Confirm employee import?</AlertDialogTitle>
               <AlertDialogDescription>
-                This will add {record.counts.valid_new} and update {record.counts.valid_update}{" "}
-                organization-provided employee records. Invalid, duplicate and skipped rows will not
-                be applied.
+                {record.counts.valid_new} new employee
+                {record.counts.valid_new === 1 ? "" : "s"} will be added.{" "}
+                {record.counts.valid_update} existing employee
+                {record.counts.valid_update === 1 ? "" : "s"} will be updated.{" "}
+                {rosterAttentionCount(record)} rows will not be imported because they need
+                attention.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -523,7 +531,7 @@ function RosterPreviewStep({
                   void confirm();
                 }}
               >
-                {confirmMutation.isPending ? "Importing…" : "Confirm import"}
+                {confirmMutation.isPending ? "Importing…" : "Import Employees"}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -652,7 +660,7 @@ function RosterResult({
   useEffect(() => {
     if (trackedImport.current === record.import_id) return;
     trackedImport.current = record.import_id;
-    trackEvent("roster_completed", {
+    trackEvent("roster_import_completed", {
       roster_type: "employee",
       state: record.state,
       created: record.counts.created,
@@ -676,7 +684,13 @@ function RosterResult({
   return (
     <div className="space-y-5">
       <SectionCard
-        title={record.state === "failed" ? "Import needs attention" : "Employee import complete"}
+        title={
+          record.state === "failed"
+            ? "Import needs attention"
+            : record.state === "completed_with_errors"
+              ? "Import completed with issues"
+              : "Import complete"
+        }
         description={
           record.completed_at
             ? `Completed ${format(new Date(record.completed_at), "MMM d, yyyy 'at' h:mm a")}`
@@ -755,6 +769,8 @@ function RosterResult({
         </div>
       </SectionCard>
 
+      <CompletedRosterRows orgPublicId={orgPublicId} importId={record.import_id} />
+
       <SectionCard
         title="Import audit trail"
         description="Authoritative backend events for this import"
@@ -784,6 +800,53 @@ function RosterResult({
         )}
       </SectionCard>
     </div>
+  );
+}
+
+function CompletedRosterRows({ orgPublicId, importId }: { orgPublicId: string; importId: string }) {
+  const [page, setPage] = useState(1);
+  const rowsQuery = useRosterImportRowsQuery(orgPublicId, importId, page);
+
+  return (
+    <SectionCard title="Import results" description="Backend-owned outcome for every source row">
+      {rowsQuery.isPending ? (
+        <TableSkeleton rows={8} />
+      ) : rowsQuery.error ? (
+        <EmptyState
+          icon={AlertTriangle}
+          title="Import results didn't load"
+          description={getRosterErrorMessage(rowsQuery.error, "Please try again.")}
+          action={{ label: "Retry", onClick: () => void rowsQuery.refetch() }}
+        />
+      ) : (
+        <RosterRowsTable rows={rowsQuery.data?.items ?? []} />
+      )}
+      {rowsQuery.data && rowsQuery.data.total_pages > 1 ? (
+        <div className="flex items-center justify-between border-t border-border/60 px-5 py-3">
+          <span className="text-xs text-muted-foreground">
+            Page {rowsQuery.data.page} of {rowsQuery.data.total_pages}
+          </span>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page === 1}
+              onClick={() => setPage((value) => value - 1)}
+            >
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= rowsQuery.data.total_pages}
+              onClick={() => setPage((value) => value + 1)}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      ) : null}
+    </SectionCard>
   );
 }
 

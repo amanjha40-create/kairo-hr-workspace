@@ -8,6 +8,7 @@ import { EmployeeRosterImportPage } from "@/components/app/roster/EmployeeRoster
 const navigateSpy = vi.fn();
 const uploadSpy = vi.fn();
 const refetchSpy = vi.fn();
+const { trackEventSpy } = vi.hoisted(() => ({ trackEventSpy: vi.fn() }));
 const accessState = {
   org: { publicId: "org-1" } as { publicId: string } | null,
   membershipRole: "owner" as "owner" | "admin" | "member",
@@ -52,6 +53,7 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 vi.mock("@/lib/access-context", () => ({ useAccess: () => accessState }));
+vi.mock("@/lib/analytics", () => ({ trackEvent: trackEventSpy }));
 vi.mock("@/lib/queries/organization-roster-imports", () => ({
   useRosterImportsQuery: () => historyState,
   useUploadEmployeeRosterMutation: () => uploadState,
@@ -70,6 +72,7 @@ describe("employee roster import landing", () => {
     historyState.error = null;
     uploadState.isPending = false;
     uploadState.error = null;
+    trackEventSpy.mockReset();
   });
 
   it.each(["employees.csv", "employees.xlsx"])(
@@ -86,6 +89,12 @@ describe("employee roster import landing", () => {
       expect(navigateSpy).toHaveBeenCalledWith({
         to: "/app/people/imports/$id",
         params: { id: makeRosterPreview().import_id },
+      });
+      expect(trackEventSpy).toHaveBeenCalledWith("roster_file_uploaded", {
+        roster_type: "employee",
+        source_format: "csv",
+        state: "ready_for_review",
+        total_rows: 5,
       });
     },
   );
@@ -112,6 +121,38 @@ describe("employee roster import landing", () => {
     expect(screen.getByText("Ready for review")).toBeInTheDocument();
     expect(screen.getByText(/not verified or approved by Kairo/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /download template/i })).toBeDisabled();
+    expect(screen.getByText(/5 rows · 0 added · 0 updated · 2 issues/i)).toBeInTheDocument();
+    expect(trackEventSpy).toHaveBeenCalledWith("roster_import_opened", {
+      roster_type: "employee",
+    });
+  });
+
+  it("renders upload failures without navigating", async () => {
+    uploadState.error = new Error("The uploaded roster could not be parsed.");
+    render(<EmployeeRosterImportPage />);
+
+    expect(screen.getByRole("alert")).toHaveTextContent("The uploaded roster could not be parsed.");
+    expect(navigateSpy).not.toHaveBeenCalled();
+  });
+
+  it("renders empty and error history states with retry", async () => {
+    const user = userEvent.setup();
+    historyState.data = { ...makeHistory(), items: [], total: 0, total_pages: 0 };
+    const { rerender } = render(<EmployeeRosterImportPage />);
+    expect(screen.getByText("No employee imports yet")).toBeInTheDocument();
+
+    historyState.data = undefined;
+    historyState.error = new Error("History service unavailable");
+    rerender(<EmployeeRosterImportPage />);
+    expect(screen.getByText("Import history didn't load")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+    expect(refetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("allows organization admins to use employee imports", () => {
+    accessState.membershipRole = "admin";
+    render(<EmployeeRosterImportPage />);
+    expect(screen.getByText("Upload employee roster")).toBeInTheDocument();
   });
 
   it("fails closed for non-manager memberships", () => {
