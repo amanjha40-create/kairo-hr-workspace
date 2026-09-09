@@ -47,6 +47,11 @@ interface RequestOptions extends Omit<RequestInit, "body" | "headers"> {
   headers?: HeadersInit;
 }
 
+export interface ApiBlobResponse {
+  blob: Blob;
+  headers: Headers;
+}
+
 let refreshPromise: Promise<AuthSession | null> | null = null;
 
 function getApiBaseUrl() {
@@ -87,7 +92,9 @@ function buildHeaders(body: RequestOptions["body"], headers?: HeadersInit) {
   ) {
     resolved.set("Content-Type", "application/json");
   }
-  resolved.set("Accept", "application/json");
+  if (!resolved.has("Accept")) {
+    resolved.set("Accept", "application/json");
+  }
   return resolved;
 }
 
@@ -175,11 +182,11 @@ async function refreshAccessToken() {
   return refreshPromise;
 }
 
-export async function apiRequest<T>(
+async function request(
   path: string,
   options: RequestOptions = {},
   retried = false,
-): Promise<T> {
+): Promise<Response> {
   const { auth = true, body, headers, ...init } = options;
   const authState = readAuthState();
   const requestHeaders = buildHeaders(body, headers);
@@ -197,9 +204,26 @@ export async function apiRequest<T>(
   if (response.status === 401 && auth && !retried) {
     const refreshed = await refreshAccessToken();
     if (refreshed) {
-      return apiRequest<T>(path, options, true);
+      return request(path, options, true);
     }
   }
 
-  return parseResponse<T>(response);
+  return response;
+}
+
+export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  return parseResponse<T>(await request(path, options));
+}
+
+export async function apiBlobRequest(
+  path: string,
+  options: RequestOptions = {},
+): Promise<ApiBlobResponse> {
+  const response = await request(path, options);
+
+  if (!response.ok) {
+    await parseResponse<never>(response);
+  }
+
+  return { blob: await response.blob(), headers: response.headers };
 }
