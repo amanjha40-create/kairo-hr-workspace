@@ -19,9 +19,11 @@ import { trackEvent } from "@/lib/analytics";
 import {
   getRosterErrorMessage,
   rosterStateLabel,
+  triggerBlobDownload,
   validateRosterFile,
 } from "@/lib/organization-roster";
 import {
+  useDownloadEmployeeRosterTemplateMutation,
   useRosterImportsQuery,
   useUploadEmployeeRosterMutation,
 } from "@/lib/queries/organization-roster-imports";
@@ -36,6 +38,7 @@ export function EmployeeRosterImportPage() {
   const [fileError, setFileError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const historyQuery = useRosterImportsQuery(org?.publicId, 1);
+  const templateMutation = useDownloadEmployeeRosterTemplateMutation();
   const uploadMutation = useUploadEmployeeRosterMutation();
   const openedTracked = useRef(false);
 
@@ -85,6 +88,16 @@ export function EmployeeRosterImportPage() {
       navigate({ to: "/app/people/imports/$id", params: { id: record.import_id } });
     } catch {
       // The mutation error is rendered below without replacing the selected file.
+    }
+  }
+
+  async function downloadTemplate() {
+    if (!org || templateMutation.isPending) return;
+    try {
+      const download = await templateMutation.mutateAsync({ orgPublicId: org.publicId });
+      triggerBlobDownload(download.blob, download.filename);
+    } catch {
+      // The download error is rendered beside the action.
     }
   }
 
@@ -172,14 +185,24 @@ export function EmployeeRosterImportPage() {
               <div>
                 <Button
                   variant="outline"
-                  disabled
-                  title="No canonical template endpoint is available"
+                  disabled={templateMutation.isPending}
+                  onClick={() => void downloadTemplate()}
                 >
-                  <FileSpreadsheet className="h-4 w-4" /> Download template
+                  {templateMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <FileSpreadsheet className="h-4 w-4" />
+                  )}
+                  {templateMutation.isPending ? "Downloading…" : "Download template"}
                 </Button>
-                <p className="mt-1.5 text-[11px] text-muted-foreground">
-                  A canonical backend template is not available yet.
-                </p>
+                {templateMutation.error ? (
+                  <p className="mt-2 text-sm text-destructive" role="alert">
+                    {getRosterErrorMessage(
+                      templateMutation.error,
+                      "The employee template could not be downloaded.",
+                    )}
+                  </p>
+                ) : null}
               </div>
               <Button
                 className="btn-premium rounded-xl"

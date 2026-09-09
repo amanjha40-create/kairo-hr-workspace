@@ -1,11 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const apiRequestSpy = vi.fn();
+const apiBlobRequestSpy = vi.fn();
 
-vi.mock("@/lib/api/client", () => ({ apiRequest: apiRequestSpy }));
+vi.mock("@/lib/api/client", () => ({
+  apiBlobRequest: apiBlobRequestSpy,
+  apiRequest: apiRequestSpy,
+}));
 
 const {
+  EMPLOYEE_ROSTER_TEMPLATE_FILENAME,
   confirmRosterImport,
+  downloadEmployeeRosterTemplate,
   downloadRosterImportErrors,
   getRosterImport,
   listRosterEmployees,
@@ -16,7 +22,39 @@ const {
 } = await import("@/lib/api/organization-roster-imports");
 
 describe("organization roster API contract", () => {
-  beforeEach(() => apiRequestSpy.mockReset());
+  beforeEach(() => {
+    apiBlobRequestSpy.mockReset();
+    apiRequestSpy.mockReset();
+  });
+
+  it("downloads the authenticated backend employee template and preserves its filename", async () => {
+    const blob = new Blob(["Employee ID,Full Name\n"], { type: "text/csv" });
+    apiBlobRequestSpy.mockResolvedValue({
+      blob,
+      headers: new Headers({
+        "Content-Disposition": 'attachment; filename="backend-employee-template.csv"',
+      }),
+    });
+
+    await expect(downloadEmployeeRosterTemplate("org-1")).resolves.toEqual({
+      blob,
+      filename: "backend-employee-template.csv",
+    });
+    expect(apiBlobRequestSpy).toHaveBeenCalledWith(
+      "/api/v1/organizations/org-1/roster/templates/employee.csv",
+      { headers: { Accept: "text/csv" } },
+    );
+  });
+
+  it("uses the canonical filename only when the backend omits Content-Disposition", async () => {
+    const blob = new Blob(["Employee ID,Full Name\n"], { type: "text/csv" });
+    apiBlobRequestSpy.mockResolvedValue({ blob, headers: new Headers() });
+
+    await expect(downloadEmployeeRosterTemplate("org-1")).resolves.toEqual({
+      blob,
+      filename: EMPLOYEE_ROSTER_TEMPLATE_FILENAME,
+    });
+  });
 
   it("uploads employee CSV/XLSX files as the frozen multipart contract", () => {
     const file = new File(["employee_id,full_name"], "employees.csv", { type: "text/csv" });

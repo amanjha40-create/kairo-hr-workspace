@@ -99,7 +99,11 @@ export function getRosterErrorMessage(error: unknown, fallback: string) {
 }
 
 export function triggerCsvDownload(content: string, filename: string) {
-  const url = URL.createObjectURL(new Blob([content], { type: "text/csv;charset=utf-8" }));
+  triggerBlobDownload(new Blob([content], { type: "text/csv;charset=utf-8" }), filename);
+}
+
+export function triggerBlobDownload(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
   link.download = filename;

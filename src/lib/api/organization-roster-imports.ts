@@ -1,4 +1,6 @@
-import { apiRequest } from "@/lib/api/client";
+import { apiBlobRequest, apiRequest } from "@/lib/api/client";
+
+export const EMPLOYEE_ROSTER_TEMPLATE_FILENAME = "kairo-employee-roster-template.csv";
 
 export type RosterImportState =
   | "uploaded"
@@ -171,6 +173,27 @@ export interface RosterMappingAssignment {
   canonical_field: string | null;
 }
 
+export interface RosterTemplateDownload {
+  blob: Blob;
+  filename: string;
+}
+
+function downloadFilename(contentDisposition: string | null) {
+  if (!contentDisposition) return null;
+
+  const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+  const encodedFilename = utf8Match?.[1];
+  if (encodedFilename) {
+    try {
+      return decodeURIComponent(encodedFilename);
+    } catch {
+      return null;
+    }
+  }
+
+  return contentDisposition.match(/filename="?([^";]+)"?/i)?.[1] ?? null;
+}
+
 function pageQuery(page: number, pageSize: number) {
   return `?page=${page}&page_size=${pageSize}`;
 }
@@ -189,6 +212,21 @@ export function uploadEmployeeRoster(orgPublicId: string, file: File) {
     `/api/v1/organizations/${orgPublicId}/roster-imports`,
     { method: "POST", body },
   );
+}
+
+export async function downloadEmployeeRosterTemplate(
+  orgPublicId: string,
+): Promise<RosterTemplateDownload> {
+  const response = await apiBlobRequest(
+    `/api/v1/organizations/${orgPublicId}/roster/templates/employee.csv`,
+    { headers: { Accept: "text/csv" } },
+  );
+  return {
+    blob: response.blob,
+    filename:
+      downloadFilename(response.headers.get("Content-Disposition")) ??
+      EMPLOYEE_ROSTER_TEMPLATE_FILENAME,
+  };
 }
 
 export function getRosterImport(orgPublicId: string, importId: string) {

@@ -1,6 +1,7 @@
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   confirmRosterImport,
+  downloadEmployeeRosterTemplate,
   downloadRosterImportErrors,
   getRosterImport,
   listAllRosterEmployees,
@@ -96,6 +97,13 @@ export function useUploadEmployeeRosterMutation() {
         queryKey: organizationRosterQueryKeys.imports(variables.orgPublicId, 1),
       });
     },
+  });
+}
+
+export function useDownloadEmployeeRosterTemplateMutation() {
+  return useMutation({
+    mutationFn: ({ orgPublicId }: { orgPublicId: string }) =>
+      downloadEmployeeRosterTemplate(orgPublicId),
   });
 }
 
