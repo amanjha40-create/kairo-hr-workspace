@@ -116,13 +116,13 @@ export function EmployeeRosterImportPage() {
       <PageHeader
         eyebrow="Organization roster"
         title="Import Employees"
-        description="Add or update employee records from a CSV or XLSX file. Imported data is organization-provided and is not verified or approved by Kairo."
+        description="Add or update employee records from a CSV or XLSX file. Imported data is organization-provided and is not verified or approved by KairoID."
       />
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.3fr)_minmax(300px,0.7fr)]">
         <SectionCard
           title="Upload employee roster"
-          description="Your file is validated by the Kairo roster service before anything is added."
+          description="Your file is validated by the KairoID roster service before anything is added."
         >
           <div className="p-5 sm:p-6">
             <input
@@ -226,7 +226,7 @@ export function EmployeeRosterImportPage() {
         >
           <ol className="divide-y divide-border/60 px-5">
             {[
-              ["1", "Map columns", "Confirm how your file maps to Kairo employee fields."],
+              ["1", "Map columns", "Confirm how your file maps to KairoID employee fields."],
               ["2", "Review preview", "See new, updated, duplicate, invalid and skipped rows."],
               [
                 "3",

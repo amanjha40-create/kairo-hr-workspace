@@ -323,7 +323,7 @@ function RosterMappingStep({
                     className="h-10 min-w-0 flex-1 rounded-xl"
                     aria-label={`Map ${column.original}`}
                   >
-                    <SelectValue placeholder="Choose a Kairo field" />
+                    <SelectValue placeholder="Choose a KairoID field" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value={IGNORE_VALUE}>Ignore this column</SelectItem>
@@ -361,7 +361,7 @@ function RosterMappingStep({
         ) : null}
         {duplicateTargets.size ? (
           <p className="mb-3 text-sm text-destructive" role="alert">
-            Each Kairo field can be mapped only once:{" "}
+            Each KairoID field can be mapped only once:{" "}
             {[...duplicateTargets].map(fieldLabel).join(", ")}.
           </p>
         ) : null}
@@ -719,7 +719,7 @@ function RosterResult({
               </p>
               <p className="mt-1 text-sm text-muted-foreground">
                 These records are organization-provided. Their identity and employment claims are
-                not Kairo-verified.
+                not KairoID-verified.
               </p>
               {record.failure_message ? (
                 <p className="mt-2 text-sm text-destructive">{record.failure_message}</p>

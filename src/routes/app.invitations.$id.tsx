@@ -291,7 +291,7 @@ function InvitationDetailPage() {
 
           <SectionCard
             title="Requested verifications"
-            description="Kairo will ask the candidate to consent to each of these."
+            description="KairoID will ask the candidate to consent to each of these."
           >
             <div className="p-5 flex flex-wrap gap-2">
               {formatVerificationList(invitation.requestedVerifications).map((label) => (
@@ -321,7 +321,7 @@ function InvitationDetailPage() {
                 <ShieldCheck className="h-4 w-4 text-primary shrink-0 mt-0.5" />
                 <div>
                   {invitation.createdByName} has requested to verify{" "}
-                  {invitation.requestedVerifications.length} categories on your Kairo Trust
+                  {invitation.requestedVerifications.length} categories on your KairoID Trust
                   Passport. You control what to share. You can decline or withdraw consent at any
                   time.
                 </div>

@@ -313,8 +313,8 @@ export function InviteEmployeeModal() {
                   </label>
                   <div className="rounded-xl border border-border/60 bg-foreground/[0.02] p-3 text-xs text-muted-foreground flex gap-2">
                     <ShieldCheck className="h-4 w-4 shrink-0 text-primary" />
-                    Kairo asks explicit consent before verifying anything. You'll never see data the
-                    candidate has not shared.
+                    KairoID asks explicit consent before verifying anything. You'll never see data
+                    the candidate has not shared.
                   </div>
                 </div>
               )}
@@ -356,7 +356,7 @@ export function InviteEmployeeModal() {
                   <div>
                     <h3 className="text-lg font-semibold">Invitation sent</h3>
                     <p className="text-sm text-muted-foreground mt-1">
-                      {form.candidateName} was invited to share a Kairo Trust Passport.
+                      {form.candidateName} was invited to share a KairoID Trust Passport.
                     </p>
                   </div>
                   <div className="rounded-xl border border-border/60 bg-foreground/[0.02] p-3 flex items-center gap-2 text-left">

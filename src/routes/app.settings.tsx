@@ -437,7 +437,7 @@ function OrgVerificationBadge({
       icon: Clock,
       title: "Verification pending",
       description:
-        "Kairo is reviewing your organization details. Verification updates will appear here.",
+        "KairoID is reviewing your organization details. Verification updates will appear here.",
       className: "bg-warning/10 text-warning-foreground border-warning/30",
     },
     unverified: {
@@ -760,7 +760,7 @@ function SecuritySection({
 }) {
   return (
     <div className="space-y-6">
-      <SectionCard title="Password" description="Update the password for your Kairo account.">
+      <SectionCard title="Password" description="Update the password for your KairoID account.">
         <div className="p-6">
           <Button variant="outline" className="rounded-xl" onClick={() => setPasswordOpen(true)}>
             Change password

@@ -409,7 +409,7 @@ function TeamPage() {
       <PageHeader
         eyebrow="Workspace"
         title="Team"
-        description="Manage teammates, roles, and access to the Kairo Trust Workspace."
+        description="Manage teammates, roles, and access to the KairoID Trust Workspace."
         actions={
           <Button
             onClick={openInvite}
@@ -667,7 +667,7 @@ function TeamPage() {
               <DialogHeader>
                 <DialogTitle>Invite team member</DialogTitle>
                 <DialogDescription>
-                  They'll receive an email to join the Kairo Trust Workspace.
+                  They'll receive an email to join the KairoID Trust Workspace.
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 pt-2">

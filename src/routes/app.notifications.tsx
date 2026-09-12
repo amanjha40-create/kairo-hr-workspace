@@ -27,7 +27,7 @@ import {
 } from "@/lib/queries/notifications";
 
 export const Route = createFileRoute("/app/notifications")({
-  head: () => ({ meta: [{ title: "Notifications · Kairo Trust Workspace" }] }),
+  head: () => ({ meta: [{ title: "Notifications · KairoID Trust Workspace" }] }),
   component: NotificationsPage,
 });
 

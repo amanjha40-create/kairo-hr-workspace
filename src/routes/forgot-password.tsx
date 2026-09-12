@@ -18,7 +18,7 @@ export const Route = createFileRoute("/forgot-password")({
   validateSearch: zodValidator(searchSchema),
   head: () => ({
     meta: [
-      { title: "Reset your password — Kairo" },
+      { title: "Reset your password — KairoID" },
       { name: "robots", content: "noindex, nofollow" },
     ],
   }),

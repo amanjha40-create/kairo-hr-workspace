@@ -12,8 +12,8 @@ import { isGoogleSsoEnabled } from "@/lib/app-config";
 export const Route = createFileRoute("/login")({
   head: () => ({
     meta: [
-      { title: "Sign in to Kairo" },
-      { name: "description", content: "Sign in to your Kairo hiring team workspace." },
+      { title: "Sign in to KairoID" },
+      { name: "description", content: "Sign in to your KairoID hiring team workspace." },
       { name: "robots", content: "noindex, nofollow" },
     ],
   }),
@@ -85,10 +85,10 @@ function LoginPage() {
   return (
     <AuthShell
       title="Welcome back"
-      subtitle="Sign in to your Kairo workspace."
+      subtitle="Sign in to your KairoID workspace."
       footer={
         <>
-          New to Kairo?{" "}
+          New to KairoID?{" "}
           <Link to="/signup" className="text-foreground font-medium hover:underline">
             Create an account
           </Link>

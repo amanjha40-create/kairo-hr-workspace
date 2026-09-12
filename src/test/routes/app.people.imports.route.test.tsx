@@ -194,7 +194,7 @@ describe("employee roster import landing", () => {
     render(<EmployeeRosterImportPage />);
     expect(screen.getByText("employees.csv")).toBeInTheDocument();
     expect(screen.getByText("Ready for review")).toBeInTheDocument();
-    expect(screen.getByText(/not verified or approved by Kairo/i)).toBeInTheDocument();
+    expect(screen.getByText(/not verified or approved by KairoID/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /download template/i })).toBeEnabled();
     expect(screen.getByText(/5 rows · 0 added · 0 updated · 2 issues/i)).toBeInTheDocument();
     expect(trackEventSpy).toHaveBeenCalledWith("roster_import_opened", {

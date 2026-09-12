@@ -229,7 +229,7 @@ function PeoplePage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Kairo Trust Workspace"
+        eyebrow="KairoID Trust Workspace"
         title="People"
         description="View candidates and professionals who have shared information with your organization."
         actions={
@@ -257,7 +257,7 @@ function PeoplePage() {
       />
       <div className="mb-4 rounded-xl border border-info/20 bg-info/[0.06] px-4 py-3 text-xs leading-relaxed text-muted-foreground">
         Imported employee records are organization-provided. They are not verified, trusted, or
-        approved by Kairo unless a separate verification is completed.
+        approved by KairoID unless a separate verification is completed.
       </div>
       {!canInvite ? (
         <PermissionDenied
@@ -508,9 +508,9 @@ function RosterSourceBadge() {
     <Badge
       variant="outline"
       className="mt-1 border-info/30 bg-info/[0.06] px-1.5 py-0 text-[9px] font-medium text-info-foreground"
-      title="Organization-provided record. Not verified or approved by Kairo."
+      title="Organization-provided record. Not verified or approved by KairoID."
     >
-      Organization-provided · Not Kairo-verified
+      Organization-provided · Not KairoID-verified
     </Badge>
   );
 }
