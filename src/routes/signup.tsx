@@ -32,11 +32,11 @@ import {
 export const Route = createFileRoute("/signup")({
   head: () => ({
     meta: [
-      { title: "Create your Kairo account — Hiring team signup" },
+      { title: "Create your KairoID account — Hiring team signup" },
       {
         name: "description",
         content:
-          "Get your hiring team on Kairo. Reusable, source-verified trust infrastructure for modern recruiters.",
+          "Get your hiring team on KairoID. Reusable, source-verified trust infrastructure for modern recruiters.",
       },
       { name: "robots", content: "noindex, nofollow" },
     ],

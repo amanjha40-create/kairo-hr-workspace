@@ -48,7 +48,7 @@ export function InvitationPendingScreen() {
       </Icon>
       <h1 className="text-2xl font-semibold tracking-tight">Organization invitation</h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        You've been invited to join a workspace on Kairo.
+        You've been invited to join a workspace on KairoID.
       </p>
       <div className="mt-6 rounded-2xl border border-border/70 bg-background p-5 text-left space-y-3">
         <Row label="Organization" value={pendingInvitation.orgName} />
@@ -131,11 +131,11 @@ export function OrgSuspendedScreen() {
       </Icon>
       <h1 className="text-2xl font-semibold tracking-tight">Workspace access suspended</h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        This organization's access to Kairo Trust Workspace is temporarily suspended. Workspace
+        This organization's access to KairoID Trust Workspace is temporarily suspended. Workspace
         actions are blocked until access is restored.
       </p>
       <div className="mt-6 text-xs text-muted-foreground">
-        Contact your organization Owner or reach out to Kairo support.
+        Contact your organization Owner or reach out to KairoID support.
       </div>
     </Frame>
   );

@@ -76,7 +76,7 @@ export function makePersonDetailRecord(
       claims: [
         {
           label: "Most recent employer",
-          value: "Kairo",
+          value: "KairoID",
           status: "Verified",
           source: "Employer records",
         },
