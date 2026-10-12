@@ -17,6 +17,7 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppIndexRouteImport } from './routes/app.index'
+import { Route as EmployerVerificationTokenRouteImport } from './routes/employer-verification.$token'
 import { Route as AppTeamRouteImport } from './routes/app.team'
 import { Route as AppSetupRouteImport } from './routes/app.setup'
 import { Route as AppSettingsRouteImport } from './routes/app.settings'
@@ -73,6 +74,12 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
+const EmployerVerificationTokenRoute =
+  EmployerVerificationTokenRouteImport.update({
+    id: '/employer-verification/$token',
+    path: '/employer-verification/$token',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AppTeamRoute = AppTeamRouteImport.update({
   id: '/team',
   path: '/team',
@@ -165,6 +172,7 @@ export interface FileRoutesByFullPath {
   '/app/settings': typeof AppSettingsRoute
   '/app/setup': typeof AppSetupRoute
   '/app/team': typeof AppTeamRoute
+  '/employer-verification/$token': typeof EmployerVerificationTokenRoute
   '/app/': typeof AppIndexRoute
   '/app/invitations/$id': typeof AppInvitationsIdRoute
   '/app/people/$id': typeof AppPeopleIdRoute
@@ -189,6 +197,7 @@ export interface FileRoutesByTo {
   '/app/settings': typeof AppSettingsRoute
   '/app/setup': typeof AppSetupRoute
   '/app/team': typeof AppTeamRoute
+  '/employer-verification/$token': typeof EmployerVerificationTokenRoute
   '/app': typeof AppIndexRoute
   '/app/invitations/$id': typeof AppInvitationsIdRoute
   '/app/people/$id': typeof AppPeopleIdRoute
@@ -215,6 +224,7 @@ export interface FileRoutesById {
   '/app/settings': typeof AppSettingsRoute
   '/app/setup': typeof AppSetupRoute
   '/app/team': typeof AppTeamRoute
+  '/employer-verification/$token': typeof EmployerVerificationTokenRoute
   '/app/': typeof AppIndexRoute
   '/app/invitations/$id': typeof AppInvitationsIdRoute
   '/app/people/$id': typeof AppPeopleIdRoute
@@ -242,6 +252,7 @@ export interface FileRouteTypes {
     | '/app/settings'
     | '/app/setup'
     | '/app/team'
+    | '/employer-verification/$token'
     | '/app/'
     | '/app/invitations/$id'
     | '/app/people/$id'
@@ -266,6 +277,7 @@ export interface FileRouteTypes {
     | '/app/settings'
     | '/app/setup'
     | '/app/team'
+    | '/employer-verification/$token'
     | '/app'
     | '/app/invitations/$id'
     | '/app/people/$id'
@@ -291,6 +303,7 @@ export interface FileRouteTypes {
     | '/app/settings'
     | '/app/setup'
     | '/app/team'
+    | '/employer-verification/$token'
     | '/app/'
     | '/app/invitations/$id'
     | '/app/people/$id'
@@ -309,6 +322,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   OnboardingRoute: typeof OnboardingRoute
   SignupRoute: typeof SignupRoute
+  EmployerVerificationTokenRoute: typeof EmployerVerificationTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -368,6 +382,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/app/'
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/employer-verification/$token': {
+      id: '/employer-verification/$token'
+      path: '/employer-verification/$token'
+      fullPath: '/employer-verification/$token'
+      preLoaderRoute: typeof EmployerVerificationTokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/app/team': {
       id: '/app/team'
@@ -535,6 +556,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   OnboardingRoute: OnboardingRoute,
   SignupRoute: SignupRoute,
+  EmployerVerificationTokenRoute: EmployerVerificationTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
