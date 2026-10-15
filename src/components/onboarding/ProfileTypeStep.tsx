@@ -88,7 +88,7 @@ export function ProfileTypeStep({ value, onChange }: Props) {
           What best describes you?
         </h1>
         <p className="mt-3 text-base text-muted-foreground max-w-xl mx-auto">
-          Your profile type helps Kairo personalize your Trust Profile and verification journey.
+          Your profile type helps KairoID personalize your Trust Profile and verification journey.
         </p>
       </div>
 

@@ -43,7 +43,7 @@ export function AuthShell({
               Trust infrastructure for modern hiring
             </p>
             <p className="text-2xl font-medium tracking-tight text-foreground leading-snug">
-              "Kairo replaced three vendors and cut our time-to-verify from days to minutes."
+              "KairoID replaced three vendors and cut our time-to-verify from days to minutes."
             </p>
             <div className="mt-6 flex items-center gap-3">
               <div className="h-9 w-9 rounded-full bg-foreground/[0.06]" />

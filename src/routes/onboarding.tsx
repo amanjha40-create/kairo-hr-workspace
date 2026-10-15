@@ -7,7 +7,7 @@ import { readOrganizationSignupDraft } from "@/lib/organization-signup-draft";
 
 export const Route = createFileRoute("/onboarding")({
   head: () => ({
-    meta: [{ title: "Kairo — Redirecting" }, { name: "robots", content: "noindex, nofollow" }],
+    meta: [{ title: "KairoID — Redirecting" }, { name: "robots", content: "noindex, nofollow" }],
   }),
   component: OnboardingRedirect,
 });

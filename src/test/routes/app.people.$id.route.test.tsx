@@ -180,7 +180,7 @@ describe("Person detail page", () => {
     expect(screen.getByText("Employment Verification")).toBeInTheDocument();
     expect(screen.getByText("offer-letter.pdf")).toBeInTheDocument();
     expect(screen.getByText("Strong match on submitted evidence.")).toBeInTheDocument();
-    expect(screen.getByText(/organization-provided · not Kairo-verified/i)).toBeInTheDocument();
+    expect(screen.getByText(/organization-provided · not KairoID-verified/i)).toBeInTheDocument();
   });
 
   it("preserves the restricted passport state from backend detail", () => {

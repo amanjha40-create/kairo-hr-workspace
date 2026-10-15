@@ -495,7 +495,7 @@ function Overview() {
   return (
     <div>
       <PageHeader
-        eyebrow="Kairo Trust Workspace"
+        eyebrow="KairoID Trust Workspace"
         title="Overview"
         description="Track Trust Invitations, incoming Employment Verifications, and shared professional trust."
         actions={

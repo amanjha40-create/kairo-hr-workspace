@@ -246,7 +246,7 @@ describe("employee roster import detail", () => {
 
     expect(screen.getByText("Import completed with issues")).toBeInTheDocument();
     expect(screen.getByText("Import results")).toBeInTheDocument();
-    expect(screen.getByText(/not Kairo-verified/i)).toBeInTheDocument();
+    expect(screen.getByText(/not KairoID-verified/i)).toBeInTheDocument();
     expect(screen.getByText("Import Completed")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /download error report/i }));
     expect(downloadSpy).toHaveBeenCalledWith({

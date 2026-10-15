@@ -75,10 +75,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
-      { title: "Kairo HR Workspace" },
+      { title: "KairoID HR Workspace" },
+      { name: "description", content: "KairoID HR Workspace. Verify once. Trusted everywhere." },
       { name: "theme-color", content: "#0a0a1a" },
       { name: "robots", content: "noindex, nofollow" },
-      { name: "application-name", content: "Kairo HR Workspace" },
+      { name: "application-name", content: "KairoID HR Workspace" },
     ],
     links: [
       { rel: "icon", type: "image/png", sizes: "32x32", href: "/favicon-32x32.png" },

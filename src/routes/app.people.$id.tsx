@@ -200,9 +200,9 @@ function PersonDetail() {
           <Badge
             variant="outline"
             className="border-info/30 bg-info/[0.06] text-info-foreground"
-            title="Organization-provided record. Not verified or approved by Kairo."
+            title="Organization-provided record. Not verified or approved by KairoID."
           >
-            Organization-provided · Not Kairo-verified
+            Organization-provided · Not KairoID-verified
           </Badge>
         ) : null}
         <RelationshipPill value={person.relationship} />

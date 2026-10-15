@@ -31,7 +31,7 @@ const accessState = {
 };
 
 vi.mock("@/components/Logo", () => ({
-  Logo: ({ className }: { className?: string }) => <div className={className}>Kairo</div>,
+  Logo: ({ className }: { className?: string }) => <div className={className}>KairoID</div>,
 }));
 
 vi.mock("framer-motion", () => ({

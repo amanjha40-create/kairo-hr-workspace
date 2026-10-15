@@ -54,7 +54,7 @@ import type { PermissionAction } from "@/lib/access-context";
 
 export const Route = createFileRoute("/app")({
   head: () => ({
-    meta: [{ title: "Kairo Trust Workspace" }, { name: "robots", content: "noindex, nofollow" }],
+    meta: [{ title: "KairoID Trust Workspace" }, { name: "robots", content: "noindex, nofollow" }],
   }),
   component: () => (
     <AccessProvider>
