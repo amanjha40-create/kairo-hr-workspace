@@ -36,25 +36,25 @@ certified by the checks below is the SHA recorded above.
 
 ## Exact backend endpoints used
 
-| Method   | Path                                                                             |
-| -------- | -------------------------------------------------------------------------------- |
-| `PATCH`  | `/api/v1/organizations/{organization_id}/people/{person_id}/lifecycle`           |
-| `PATCH`  | `/api/v1/organizations/{organization_id}/people/{person_id}/employment-profile`  |
-| `GET`    | `/api/v1/organizations/{organization_id}/job-roles`                              |
-| `POST`   | `/api/v1/organizations/{organization_id}/job-roles`                              |
-| `PATCH`  | `/api/v1/organizations/{organization_id}/job-roles/{role_id}`                    |
-| `DELETE` | `/api/v1/organizations/{organization_id}/job-roles/{role_id}`                    |
-| `POST`   | `/api/v1/organizations/{organization_id}/logo/upload-intents`                    |
-| `POST`   | `/api/v1/organizations/{organization_id}/logo/confirm`                           |
-| `GET`    | `/api/v1/organizations/{organization_id}/logo`                                   |
-| `DELETE` | `/api/v1/organizations/{organization_id}/logo`                                   |
-| `GET`    | `/api/v1/organizations/{organization_id}/verification-preferences`               |
-| `PUT`    | `/api/v1/organizations/{organization_id}/verification-preferences`               |
-| `POST`   | `/api/v1/organizations/{organization_id}/invitations`                            |
-| `POST`   | `/api/v1/organizations/{organization_id}/invitations/{invitation_id}/resend`     |
-| `GET`    | `/api/v1/workspace/team-invitations/{token}`                                     |
-| `POST`   | `/api/v1/workspace/team-invitations/{token}/accept`                              |
-| `GET`    | `/api/v1/organizations/{organization_id}/people/{person_id}/verification-report` |
+| Method   | Path                                                                                  |
+| -------- | ------------------------------------------------------------------------------------- |
+| `PATCH`  | `/api/v1/organizations/{org_public_id}/people/{person_public_id}/lifecycle`           |
+| `PATCH`  | `/api/v1/organizations/{org_public_id}/people/{person_public_id}/employment-profile`  |
+| `GET`    | `/api/v1/organizations/{org_public_id}/job-roles`                                     |
+| `POST`   | `/api/v1/organizations/{org_public_id}/job-roles`                                     |
+| `PATCH`  | `/api/v1/organizations/{org_public_id}/job-roles/{role_public_id}`                    |
+| `DELETE` | `/api/v1/organizations/{org_public_id}/job-roles/{role_public_id}`                    |
+| `POST`   | `/api/v1/organizations/{org_public_id}/logo/upload-intents`                           |
+| `POST`   | `/api/v1/organizations/{org_public_id}/logo/confirm`                                  |
+| `GET`    | `/api/v1/organizations/{org_public_id}/logo`                                          |
+| `DELETE` | `/api/v1/organizations/{org_public_id}/logo`                                          |
+| `GET`    | `/api/v1/organizations/{org_public_id}/verification-preferences`                      |
+| `PUT`    | `/api/v1/organizations/{org_public_id}/verification-preferences`                      |
+| `POST`   | `/api/v1/organizations/{org_public_id}/invitations`                                   |
+| `POST`   | `/api/v1/organizations/{org_public_id}/invitations/{invitation_public_id}/resend`     |
+| `GET`    | `/api/v1/workspace/team-invitations/{token}`                                          |
+| `POST`   | `/api/v1/workspace/team-invitations/{token}/accept`                                   |
+| `GET`    | `/api/v1/organizations/{org_public_id}/people/{person_public_id}/verification-report` |
 
 Frontend acceptance route: `/team-invitations/accept?token={opaque_token}`.
 
