@@ -66,6 +66,16 @@ const report: VerificationReportModel = {
           declaredValue: "No matching records found",
           verifiedValue: null,
         },
+        {
+          label: "Source",
+          declaredValue: "Authorized court index",
+          verifiedValue: null,
+        },
+        {
+          label: "Remarks",
+          declaredValue: "Search completed against the stated scope.",
+          verifiedValue: null,
+        },
       ],
       evidence: [
         {
@@ -153,6 +163,8 @@ describe("Verification report route", () => {
     expect(screen.getAllByText("Court-record search")).toHaveLength(2);
     expect(screen.getByText("District and High Court indexes")).toBeInTheDocument();
     expect(screen.getByText("No matching records found")).toBeInTheDocument();
+    expect(screen.getByText("Authorized court index")).toBeInTheDocument();
+    expect(screen.getByText("Search completed against the stated scope.")).toBeInTheDocument();
     expect(screen.getByText("Evidence evidence-court-safe")).toBeInTheDocument();
     expect(
       screen.getByText("Name-based search; identity correlation remains limited."),

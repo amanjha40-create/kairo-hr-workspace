@@ -97,7 +97,7 @@ export interface CreateTrustInvitationPayload {
   subject_phone?: string;
   purpose?: string;
   role_id?: string;
-  requested_verification_types: BackendTrustInvitationVerificationType[];
+  requested_verification_types?: BackendTrustInvitationVerificationType[];
   message?: string;
   delivery_method: BackendTrustInvitationDeliveryMethod;
   mode: "send" | "draft";

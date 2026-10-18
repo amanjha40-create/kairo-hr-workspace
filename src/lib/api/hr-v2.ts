@@ -184,9 +184,11 @@ export interface VerificationReportCourtSearchItem {
   scope: string | null;
   search_period: string | null;
   searched_at: string | null;
+  source: string | null;
   finding: string | null;
   evidence_id: string | null;
   reviewer: string | null;
+  remarks: string | null;
   limitations: string | null;
   status: VerificationReportCheckStatus;
 }

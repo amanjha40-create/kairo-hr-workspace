@@ -212,7 +212,7 @@ describe("InviteEmployeeModal", () => {
     accessState.can = (action: string) => action === "invite_candidate";
   });
 
-  async function advanceToReview() {
+  function advanceToVerifications() {
     fireEvent.change(screen.getByLabelText("Aman Joshi"), {
       target: { value: "Aman Joshi" },
     });
@@ -220,9 +220,17 @@ describe("InviteEmployeeModal", () => {
       target: { value: "aman@example.com" },
     });
     fireEvent.click(screen.getByText("Continue"));
+  }
+
+  function advanceFromVerificationsToReview() {
     fireEvent.click(screen.getByText("Continue"));
     fireEvent.click(screen.getByText("Continue"));
     fireEvent.click(screen.getByText("Continue"));
+  }
+
+  function advanceToReview() {
+    advanceToVerifications();
+    advanceFromVerificationsToReview();
   }
 
   it("requires candidate details before moving past the first step", () => {
@@ -231,7 +239,7 @@ describe("InviteEmployeeModal", () => {
     expect(screen.getByText("Continue")).toBeDisabled();
   });
 
-  it("submits the backend payload and shows the canonical invitation URL after send", async () => {
+  it("omits untouched requested types so the backend applies organization defaults", async () => {
     mutateAsyncSpy.mockResolvedValue(
       makeTrustInvitationRecord({
         id: "ti_123",
@@ -240,11 +248,18 @@ describe("InviteEmployeeModal", () => {
     );
 
     render(<InviteEmployeeModal />);
-    await advanceToReview();
+    advanceToVerifications();
+    const defaults = screen.getAllByLabelText("checkbox") as HTMLInputElement[];
+    expect(defaults[0]).toBeChecked();
+    expect(defaults[1]).toBeChecked();
+    expect(screen.getByText(/leaving them unchanged lets the backend apply/i)).toBeInTheDocument();
+    advanceFromVerificationsToReview();
     fireEvent.click(screen.getByText("Send invitation"));
 
     await waitFor(() => {
-      expect(mutateAsyncSpy).toHaveBeenCalledWith(
+      expect(mutateAsyncSpy).toHaveBeenCalledTimes(1);
+      const payload = mutateAsyncSpy.mock.calls[0]?.[0];
+      expect(payload).toEqual(
         expect.objectContaining({
           subject_name: "Aman Joshi",
           subject_email: "aman@example.com",
@@ -252,15 +267,50 @@ describe("InviteEmployeeModal", () => {
           mode: "send",
           role_id: "role_software_engineer",
           purpose: "Software Engineer",
-          requested_verification_types: [],
           message: expect.stringContaining(
             "Acme Limited has invited you to KairoID to complete verification for the Software Engineer role",
           ),
         }),
       );
+      expect(payload).not.toHaveProperty("requested_verification_types");
       expect(screen.getByText("Invitation sent")).toBeInTheDocument();
       expect(screen.getByText("https://trust.kairo.dev/invitations/ti_123")).toBeInTheDocument();
     });
+  });
+
+  it("sends an explicit edited verification selection", async () => {
+    mutateAsyncSpy.mockResolvedValue(makeTrustInvitationRecord({ id: "ti_edited" }));
+
+    render(<InviteEmployeeModal />);
+    advanceToVerifications();
+    const checkboxes = screen.getAllByLabelText("checkbox");
+    fireEvent.click(checkboxes[1]!);
+    advanceFromVerificationsToReview();
+    fireEvent.click(screen.getByText("Send invitation"));
+
+    await waitFor(() =>
+      expect(mutateAsyncSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ requested_verification_types: ["identity"] }),
+      ),
+    );
+  });
+
+  it("preserves an explicitly cleared verification selection as an empty list", async () => {
+    mutateAsyncSpy.mockResolvedValue(makeTrustInvitationRecord({ id: "ti_empty" }));
+
+    render(<InviteEmployeeModal />);
+    advanceToVerifications();
+    const checkboxes = screen.getAllByLabelText("checkbox");
+    fireEvent.click(checkboxes[0]!);
+    fireEvent.click(checkboxes[1]!);
+    advanceFromVerificationsToReview();
+    fireEvent.click(screen.getByText("Send invitation"));
+
+    await waitFor(() =>
+      expect(mutateAsyncSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ requested_verification_types: [] }),
+      ),
+    );
   });
 
   it("uses Role as the structured field and allows the default message to be edited", async () => {
@@ -284,7 +334,7 @@ describe("InviteEmployeeModal", () => {
     mutateAsyncSpy.mockRejectedValue(new Error("Backend rejected invitation"));
 
     render(<InviteEmployeeModal />);
-    await advanceToReview();
+    advanceToReview();
     fireEvent.click(screen.getByText("Send invitation"));
 
     await waitFor(() => {

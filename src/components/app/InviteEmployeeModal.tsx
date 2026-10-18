@@ -134,7 +134,9 @@ export function InviteEmployeeModal() {
         subject_phone: form.candidatePhone.trim() || undefined,
         purpose: form.purpose.trim() || undefined,
         role_id: form.roleId,
-        requested_verification_types: verificationEdited ? form.requestedVerifications : [],
+        ...(verificationEdited
+          ? { requested_verification_types: form.requestedVerifications }
+          : {}),
         message: form.message.trim() || undefined,
         delivery_method: "email",
         mode: action,

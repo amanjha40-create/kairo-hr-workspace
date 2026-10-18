@@ -4,7 +4,6 @@ import { toast } from "sonner";
 import { EmptyState, SectionCard, TableSkeleton } from "@/components/app/primitives";
 import { PermissionDenied } from "@/components/app/access/PermissionDenied";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import type { VerificationPreferenceCheck } from "@/lib/api/hr-v2";
 import { getOrganizationPeopleErrorMessage } from "@/lib/organization-people";
@@ -13,7 +12,11 @@ import {
   useUpdateOrganizationVerificationPreferencesMutation,
 } from "@/lib/queries/hr-v2";
 
-const CHECKS: Array<{ key: VerificationPreferenceCheck; label: string; description: string }> = [
+const AUTOMATIC_CHECKS: Array<{
+  key: VerificationPreferenceCheck;
+  label: string;
+  description: string;
+}> = [
   {
     key: "identity",
     label: "Identity",
@@ -25,8 +28,14 @@ const CHECKS: Array<{ key: VerificationPreferenceCheck; label: string; descripti
     description: "Employment history and employer confirmation.",
   },
   { key: "education", label: "Education", description: "Institution and qualification checks." },
-  { key: "references", label: "References", description: "Professional reference requests." },
-  { key: "address", label: "Address", description: "Privacy-safe address verification." },
+];
+
+const ALL_CHECKS: VerificationPreferenceCheck[] = [
+  "identity",
+  "employment",
+  "education",
+  "references",
+  "address",
 ];
 
 type PreferenceForm = {
@@ -40,9 +49,21 @@ function toForm(data: {
 }): PreferenceForm {
   return {
     checks: Object.fromEntries(
-      CHECKS.map(({ key }) => [key, data.checks[key] === true]),
+      ALL_CHECKS.map((key) => [key, data.checks[key] === true]),
     ) as PreferenceForm["checks"],
     referenceCount: data.reference_count,
+  };
+}
+
+function toSupportedForm(data: {
+  checks: Record<string, boolean>;
+  reference_count: number;
+}): PreferenceForm {
+  const form = toForm(data);
+  return {
+    ...form,
+    checks: { ...form.checks, references: false, address: false },
+    referenceCount: 0,
   };
 }
 
@@ -60,9 +81,9 @@ export function VerificationPreferencesSettings({
 
   useEffect(() => {
     if (!query.data) return;
-    const next = toForm(query.data);
+    const next = toSupportedForm(query.data);
     setForm(next);
-    setSaved(next);
+    setSaved(toForm(query.data));
   }, [query.data]);
 
   const dirty = useMemo(() => JSON.stringify(form) !== JSON.stringify(saved), [form, saved]);
@@ -103,18 +124,18 @@ export function VerificationPreferencesSettings({
   return (
     <SectionCard
       title="Verification preferences"
-      description="Organization defaults for new Trust Invitations and verification cases"
+      description="Supported automatic defaults for new Trust Invitations"
     >
       <div className="space-y-5 p-6">
         <div className="rounded-xl border border-info/20 bg-info/[0.06] p-4 text-sm text-muted-foreground">
-          Changes apply only to new invitations and cases. Historical invitations and verification
-          cases are never rewritten.
+          Supported defaults apply only to new Trust Invitations. Historical invitations and
+          verification cases are never rewritten.
         </div>
         {!canManage ? (
           <PermissionDenied message="Only organization owners and admins can change verification defaults." />
         ) : null}
         <div className="divide-y divide-border/60 rounded-2xl border border-border/60">
-          {CHECKS.map((check) => (
+          {AUTOMATIC_CHECKS.map((check) => (
             <div key={check.key} className="flex items-start justify-between gap-4 p-4">
               <div>
                 <div className="text-sm font-medium">{check.label}</div>
@@ -130,8 +151,6 @@ export function VerificationPreferencesSettings({
                       ? {
                           ...current,
                           checks: { ...current.checks, [check.key]: checked },
-                          referenceCount:
-                            check.key === "references" && !checked ? 0 : current.referenceCount,
                         }
                       : current,
                   )
@@ -140,25 +159,22 @@ export function VerificationPreferencesSettings({
             </div>
           ))}
         </div>
-        {form.checks.references ? (
-          <div className="max-w-xs">
-            <label htmlFor="reference-count" className="text-xs font-medium">
-              Reference count
-            </label>
-            <Input
-              id="reference-count"
-              type="number"
-              min={0}
-              max={10}
-              value={form.referenceCount}
-              disabled={!canManage}
-              className="mt-1.5 rounded-xl"
-              onChange={(event) =>
-                setForm((current) =>
-                  current ? { ...current, referenceCount: Number(event.target.value) } : current,
-                )
-              }
-            />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <UnsupportedDefault
+            title="References"
+            description="Professional references continue through the existing Reference Checks flow and are not an automatic invitation default."
+          />
+          <UnsupportedDefault
+            title="Address"
+            description="Permanent Address verification remains a separate workflow and is not an automatic Trust Invitation default."
+          />
+        </div>
+        {query.data.checks.references ||
+        query.data.checks.address ||
+        query.data.reference_count > 0 ? (
+          <div className="rounded-xl border border-warning/30 bg-warning/10 p-4 text-sm text-muted-foreground">
+            Unsupported automatic defaults were previously stored. Save these preferences to keep
+            References and Address in their separate workflows.
           </div>
         ) : null}
         {mutation.error ? (
@@ -186,14 +202,14 @@ export function VerificationPreferencesSettings({
             <Button
               size="sm"
               className="btn-premium rounded-xl"
-              disabled={!canManage || !dirty || mutation.isPending || form.referenceCount > 10}
+              disabled={!canManage || !dirty || mutation.isPending}
               onClick={async () => {
                 try {
                   const result = await mutation.mutateAsync({
-                    checks: form.checks,
-                    reference_count: form.checks.references ? form.referenceCount : 0,
+                    checks: { ...form.checks, references: false, address: false },
+                    reference_count: 0,
                   });
-                  const next = toForm(result);
+                  const next = toSupportedForm(result);
                   setForm(next);
                   setSaved(next);
                   toast.success("Verification preferences saved");
@@ -213,5 +229,14 @@ export function VerificationPreferencesSettings({
         </div>
       </div>
     </SectionCard>
+  );
+}
+
+function UnsupportedDefault({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="rounded-xl border border-border/60 bg-foreground/[0.02] p-4">
+      <div className="text-sm font-medium">{title}</div>
+      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{description}</p>
+    </div>
   );
 }

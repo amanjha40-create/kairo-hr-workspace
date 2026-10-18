@@ -127,9 +127,11 @@ function reportFixture(): BackendVerificationReport {
         scope: null,
         search_period: null,
         searched_at: null,
+        source: null,
         finding: null,
         evidence_id: null,
         reviewer: null,
+        remarks: null,
         limitations: "No authoritative court-search source was ordered.",
         status: "NOT_ORDERED",
       },
@@ -219,9 +221,11 @@ describe("structured HR verification report adapter", () => {
         scope: "District and High Court indexes",
         search_period: "2016–2026",
         searched_at: "2026-10-17T10:00:00Z",
+        source: "Authorized court index",
         finding: "No matching records found",
         evidence_id: "evidence-court-safe",
         reviewer: "Authorized reviewer",
+        remarks: "Search completed against the stated scope.",
         limitations: "Name-based search; identity correlation remains limited.",
         status: "CONFIRMED",
       },
@@ -251,9 +255,24 @@ describe("structured HR verification report adapter", () => {
           declaredValue: "District and High Court indexes",
         }),
         expect.objectContaining({ label: "Search period", declaredValue: "2016–2026" }),
+        expect.objectContaining({ label: "Source", declaredValue: "Authorized court index" }),
         expect.objectContaining({ label: "Finding", declaredValue: "No matching records found" }),
+        expect.objectContaining({
+          label: "Remarks",
+          declaredValue: "Search completed against the stated scope.",
+        }),
       ]),
     );
+  });
+
+  it("omits empty Court source and remarks fields without blank report noise", () => {
+    const fixture = reportFixture();
+    const court = mapStructuredVerificationReport(fixture).checks.find(
+      (check) => check.type === "court_record_search",
+    );
+
+    expect(court?.fields.some((field) => field.label === "Source")).toBe(false);
+    expect(court?.fields.some((field) => field.label === "Remarks")).toBe(false);
   });
 
   it.each([

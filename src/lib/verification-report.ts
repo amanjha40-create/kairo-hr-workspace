@@ -453,8 +453,10 @@ function structuredCheckDetails(report: BackendVerificationReport, check: string
       appendField(fields, "Subject", item.safe_subject_display);
       appendField(fields, "Scope", item.scope);
       appendField(fields, "Search period", item.search_period);
+      appendField(fields, "Source", item.source);
       appendField(fields, "Finding", item.finding);
       appendField(fields, "Reviewer", item.reviewer);
+      appendField(fields, "Remarks", item.remarks);
       recordNote(item.limitations);
       recordEvidence(item.evidence_id, item.status, item.searched_at);
     });
