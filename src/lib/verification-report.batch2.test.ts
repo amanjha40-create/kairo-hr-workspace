@@ -35,7 +35,7 @@ function reportFixture(): BackendVerificationReport {
       },
       { check: "address", status: "PENDING", updated_at: null, display_text: "Pending" },
       {
-        check: "court_search",
+        check: "court_record_search",
         status: "NOT_ORDERED",
         updated_at: null,
         display_text: "Not ordered",
@@ -202,18 +202,155 @@ describe("structured HR verification report adapter", () => {
         }),
       ]),
     );
-    expect(model.checks.find((check) => check.type === "court_search")?.notes).toEqual([
+    expect(model.checks.find((check) => check.type === "court_record_search")?.notes).toEqual([
       "No authoritative court-search source was ordered.",
     ]);
   });
 
+  it("maps canonical court summaries to the existing court detail collection", () => {
+    const fixture = reportFixture();
+    const summary = fixture.check_summaries.find((item) => item.check === "court_record_search");
+    if (!summary) throw new Error("Missing court summary fixture");
+    summary.status = "CONFIRMED";
+    summary.display_text = "No matching records found";
+    fixture.court_search = [
+      {
+        safe_subject_display: "A*** J***",
+        scope: "District and High Court indexes",
+        search_period: "2016–2026",
+        searched_at: "2026-10-17T10:00:00Z",
+        finding: "No matching records found",
+        evidence_id: "evidence-court-safe",
+        reviewer: "Authorized reviewer",
+        limitations: "Name-based search; identity correlation remains limited.",
+        status: "CONFIRMED",
+      },
+    ];
+
+    const court = mapStructuredVerificationReport(fixture).checks.find(
+      (check) => check.type === "court_record_search",
+    );
+
+    expect(court).toMatchObject({
+      title: "Court-record search",
+      outcome: "confirmed",
+      evidence: [
+        {
+          id: "evidence-court-safe",
+          status: "CONFIRMED",
+          recordedAt: "2026-10-17T10:00:00Z",
+        },
+      ],
+      notes: ["Name-based search; identity correlation remains limited."],
+    });
+    expect(court?.fields).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: "Subject", declaredValue: "A*** J***" }),
+        expect.objectContaining({
+          label: "Scope",
+          declaredValue: "District and High Court indexes",
+        }),
+        expect.objectContaining({ label: "Search period", declaredValue: "2016–2026" }),
+        expect.objectContaining({ label: "Finding", declaredValue: "No matching records found" }),
+      ]),
+    );
+  });
+
+  it.each([
+    ["NOT_ORDERED", "not_ordered", "Search not ordered"],
+    ["PENDING", "pending", "Search pending"],
+    ["CONFIRMED", "confirmed", "No matching records found"],
+    ["DISCREPANCY", "discrepancy", "Potential match requires HR review"],
+  ] as const)("maps court %s to %s", (status, outcome, finding) => {
+    const fixture = reportFixture();
+    const summary = fixture.check_summaries.find((item) => item.check === "court_record_search");
+    if (!summary) throw new Error("Missing court summary fixture");
+    summary.status = status;
+    fixture.court_search[0] = { ...fixture.court_search[0], status, finding };
+
+    const court = mapStructuredVerificationReport(fixture).checks.find(
+      (check) => check.type === "court_record_search",
+    );
+
+    expect(court?.outcome).toBe(outcome);
+    expect(court?.fields).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: "Finding", declaredValue: finding }),
+      ]),
+    );
+  });
+
+  it("keeps legacy court_search compatibility without duplicating the Court section", () => {
+    const fixture = reportFixture();
+    const canonical = fixture.check_summaries.find((item) => item.check === "court_record_search");
+    if (!canonical) throw new Error("Missing court summary fixture");
+    fixture.check_summaries = [
+      { ...canonical, check: "court_search", status: "PENDING" },
+      ...fixture.check_summaries,
+    ];
+    fixture.court_search[0] = {
+      ...fixture.court_search[0],
+      scope: "Canonical court scope",
+      status: "NOT_ORDERED",
+    };
+
+    const courtChecks = mapStructuredVerificationReport(fixture).checks.filter(
+      (check) => check.type === "court_record_search",
+    );
+
+    expect(courtChecks).toHaveLength(1);
+    expect(courtChecks[0]?.outcome).toBe("not_ordered");
+    expect(courtChecks[0]?.fields).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: "Scope", declaredValue: "Canonical court scope" }),
+      ]),
+    );
+  });
+
+  it("maps a legacy-only court_search summary through the canonical Court adapter", () => {
+    const fixture = reportFixture();
+    const summary = fixture.check_summaries.find((item) => item.check === "court_record_search");
+    if (!summary) throw new Error("Missing court summary fixture");
+    summary.check = "court_search";
+    fixture.court_search[0] = {
+      ...fixture.court_search[0],
+      scope: "Legacy fixture scope",
+    };
+
+    const court = mapStructuredVerificationReport(fixture).checks.find(
+      (check) => check.type === "court_record_search",
+    );
+
+    expect(court?.title).toBe("Court-record search");
+    expect(court?.fields).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: "Scope", declaredValue: "Legacy fixture scope" }),
+      ]),
+    );
+  });
+
   it("preserves masking and excludes backend metadata/internal notes", () => {
-    const serialized = JSON.stringify(mapStructuredVerificationReport(reportFixture()));
+    const fixture = reportFixture();
+    fixture.metadata = {
+      internal_notes: "must not enter the frontend model",
+      court_raw_subject: "Private Unmasked Subject",
+      provider_access_token: "secret-token",
+    };
+    fixture.court_search[0] = {
+      ...fixture.court_search[0],
+      safe_subject_display: "P****** S******",
+      evidence_id: "evidence-court-safe",
+    };
+    const serialized = JSON.stringify(mapStructuredVerificationReport(fixture));
 
     expect(serialized).toContain("********9012");
+    expect(serialized).toContain("P****** S******");
+    expect(serialized).toContain("evidence-court-safe");
     expect(serialized).not.toContain("123456789012");
     expect(serialized).not.toContain("must not enter the frontend model");
     expect(serialized).not.toContain("internal_notes");
+    expect(serialized).not.toContain("Private Unmasked Subject");
+    expect(serialized).not.toContain("secret-token");
   });
 
   it("uses backend FINAL without frontend terminal-state inference", () => {

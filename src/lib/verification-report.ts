@@ -327,8 +327,15 @@ export function buildVerificationReportModel({
   };
 }
 
+const CANONICAL_COURT_CHECK = "court_record_search";
+
+function normalizeCheckKey(value: string) {
+  return value === "court_search" ? CANONICAL_COURT_CHECK : value;
+}
+
 function displayLabel(value: string) {
-  return humanize(value.replace(/^court_search$/, "court-record search"));
+  const normalized = normalizeCheckKey(value);
+  return normalized === CANONICAL_COURT_CHECK ? "Court-record search" : humanize(normalized);
 }
 
 function valuesToFields(
@@ -441,7 +448,7 @@ function structuredCheckDetails(report: BackendVerificationReport, check: string
       recordEvidence(item.evidence_id, item.status, item.verified_at);
     });
   }
-  if (check === "court_search") {
+  if (normalizeCheckKey(check) === CANONICAL_COURT_CHECK) {
     report.court_search.forEach((item) => {
       appendField(fields, "Subject", item.safe_subject_display);
       appendField(fields, "Scope", item.scope);
@@ -459,13 +466,24 @@ function structuredCheckDetails(report: BackendVerificationReport, check: string
 export function mapStructuredVerificationReport(
   report: BackendVerificationReport,
 ): VerificationReportModel {
-  const checks = report.check_summaries.map((summary, index) => {
+  const courtSummary =
+    report.check_summaries.find((summary) => summary.check === CANONICAL_COURT_CHECK) ??
+    report.check_summaries.find(
+      (summary) => normalizeCheckKey(summary.check) === CANONICAL_COURT_CHECK,
+    );
+  const summaries = report.check_summaries.filter(
+    (summary) =>
+      normalizeCheckKey(summary.check) !== CANONICAL_COURT_CHECK || summary === courtSummary,
+  );
+
+  const checks = summaries.map((summary, index) => {
+    const normalizedCheck = normalizeCheckKey(summary.check);
     const outcome = STRUCTURED_OUTCOME[summary.status];
     const details = structuredCheckDetails(report, summary.check);
     return {
-      id: `${summary.check}-${index}`,
-      type: summary.check,
-      title: displayLabel(summary.check),
+      id: `${normalizedCheck}-${index}`,
+      type: normalizedCheck,
+      title: displayLabel(normalizedCheck),
       outcome,
       outcomeLabel: OUTCOME_LABELS[outcome],
       requestedAt: report.header.initiated_at ?? report.header.report_updated_at,

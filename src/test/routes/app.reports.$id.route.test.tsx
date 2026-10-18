@@ -47,6 +47,36 @@ const report: VerificationReportModel = {
       evidence: [],
       notes: [],
     },
+    {
+      id: "court_record_search-1",
+      type: "court_record_search",
+      title: "Court-record search",
+      outcome: "confirmed",
+      outcomeLabel: "Confirmed",
+      requestedAt: "2026-08-01T00:00:00Z",
+      updatedAt: "2026-08-03T00:00:00Z",
+      fields: [
+        {
+          label: "Scope",
+          declaredValue: "District and High Court indexes",
+          verifiedValue: null,
+        },
+        {
+          label: "Finding",
+          declaredValue: "No matching records found",
+          verifiedValue: null,
+        },
+      ],
+      evidence: [
+        {
+          id: "evidence-court-safe",
+          label: "Evidence evidence-court-safe",
+          status: "Confirmed",
+          recordedAt: "2026-08-03T00:00:00Z",
+        },
+      ],
+      notes: ["Name-based search; identity correlation remains limited."],
+    },
   ],
   openItems: ["References: Awaiting response"],
   requiresHrReview: true,
@@ -120,6 +150,14 @@ describe("Verification report route", () => {
     expect(screen.getAllByText("Details matched")).toHaveLength(2);
     expect(screen.getByText("HR review required")).toBeInTheDocument();
     expect(screen.queryByText("Education")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Court-record search")).toHaveLength(2);
+    expect(screen.getByText("District and High Court indexes")).toBeInTheDocument();
+    expect(screen.getByText("No matching records found")).toBeInTheDocument();
+    expect(screen.getByText("Evidence evidence-court-safe")).toBeInTheDocument();
+    expect(
+      screen.getByText("Name-based search; identity correlation remains limited."),
+    ).toBeInTheDocument();
+    expect(document.body.textContent).not.toContain("secret-token");
     fireEvent.click(screen.getByText("Download PDF"));
     expect(printSpy).toHaveBeenCalledTimes(1);
   });
