@@ -209,7 +209,7 @@ export function mapVerificationRecord(
   return {
     id: request.public_id,
     candidateName: request.subject_name,
-    candidateEmail: request.subject_email,
+    candidateEmail: request.subject_email ?? "Unavailable",
     backendStatus: request.status,
     status: getVerificationStatusLabel(request.status, reviewStatus),
     reviewStatus,

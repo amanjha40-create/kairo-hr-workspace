@@ -29,6 +29,7 @@ import {
   useUpdateOrganizationPersonNoteMutation,
 } from "@/lib/queries/organization-people";
 import { useRosterEmployeesQuery } from "@/lib/queries/organization-roster-imports";
+import { getEmployeeRosterMetadata } from "@/lib/organization-roster";
 import {
   ArrowLeft,
   ArrowRight,
@@ -51,6 +52,9 @@ import {
   Users,
   Hash,
   AlertTriangle,
+  BriefcaseBusiness,
+  Building2,
+  CalendarDays,
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
@@ -97,9 +101,7 @@ function PersonDetail() {
   const addNoteMutation = useAddOrganizationPersonNoteMutation();
   const updateNoteMutation = useUpdateOrganizationPersonNoteMutation();
   const deleteNoteMutation = useDeleteOrganizationPersonNoteMutation();
-  const [activeTab, setActiveTab] = useState(() =>
-    typeof window !== "undefined" && window.location.hash === "#passport" ? "passport" : "summary",
-  );
+  const [activeTab, setActiveTab] = useState("summary");
 
   if (!org) {
     return (
@@ -165,8 +167,12 @@ function PersonDetail() {
   if (!person) {
     return <PersonNotFound />;
   }
-  const isRosterEmployee = rosterEmployeesQuery.data?.items.some(
+  const rosterEmployee = rosterEmployeesQuery.data?.items.find(
     (employee) => employee.organization_person_id === person.publicId,
+  );
+  const roster = getEmployeeRosterMetadata(rosterEmployee);
+  const referenceChecks = person.employmentVerifications.filter((verification) =>
+    verification.requestType.toLowerCase().includes("reference"),
   );
 
   return (
@@ -183,20 +189,16 @@ function PersonDetail() {
         title={person.fullName}
         description={person.email || "No email shared"}
         actions={
-          canOpenSharedPassport(person.passportStatus) ? (
-            <Button
-              size="sm"
-              className="btn-premium rounded-xl"
-              onClick={() => setActiveTab("passport")}
-            >
-              <ShieldCheck className="h-4 w-4 mr-1.5" /> Open Shared Trust Passport
-            </Button>
-          ) : null
+          <Button size="sm" className="btn-premium rounded-xl" asChild>
+            <Link to="/app/reports/$id" params={{ id: person.publicId }}>
+              <FileText className="h-4 w-4 mr-1.5" /> View Verification Report
+            </Link>
+          </Button>
         }
       />
 
       <div className="flex flex-wrap items-center gap-2 mb-8">
-        {isRosterEmployee ? (
+        {roster ? (
           <Badge
             variant="outline"
             className="border-info/30 bg-info/[0.06] text-info-foreground"
@@ -216,17 +218,11 @@ function PersonDetail() {
           <TabsTrigger value="summary" className="rounded-lg">
             Summary
           </TabsTrigger>
-          <TabsTrigger value="passport" className="rounded-lg">
-            Shared Trust Passport
-          </TabsTrigger>
-          <TabsTrigger value="requests" className="rounded-lg">
-            Employment Verifications
+          <TabsTrigger value="references" className="rounded-lg">
+            Reference Checks
           </TabsTrigger>
           <TabsTrigger value="evidence" className="rounded-lg">
             Shared Evidence
-          </TabsTrigger>
-          <TabsTrigger value="activity" className="rounded-lg">
-            Activity
           </TabsTrigger>
           <TabsTrigger value="notes" className="rounded-lg">
             Internal Notes
@@ -234,50 +230,143 @@ function PersonDetail() {
         </TabsList>
 
         <TabsContent value="summary">
-          <SectionCard title="Summary" description="Profile information for this person">
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 p-6">
-              <Field icon={UserRound} label="Full name" value={person.fullName} />
-              <Field icon={Mail} label="Email" value={person.email || "—"} />
-              <Field icon={Phone} label="Phone" value={person.phone || "—"} />
-              <Field icon={Users} label="Relationship" value={person.relationship} />
-              <Field icon={Hash} label="Person reference" value={person.publicId} mono />
-              <Field
-                icon={CalendarClock}
-                label="Date added"
-                value={format(new Date(person.addedAt), "MMM d, yyyy")}
-              />
-              <Field icon={UserRound} label="Invited or added by" value={person.addedBy} />
-              <Field
-                icon={Clock}
-                label="Last activity"
-                value={
-                  person.lastActivityAt
-                    ? formatDistanceToNow(new Date(person.lastActivityAt), { addSuffix: true })
-                    : "No activity yet"
-                }
-              />
-            </div>
-          </SectionCard>
+          <div className="space-y-5">
+            <SectionCard
+              title="Identity & employment"
+              description="Executive record for this person"
+            >
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 p-6">
+                <Field icon={UserRound} label="Full name" value={person.fullName} />
+                <Field icon={Mail} label="Email" value={person.email || "—"} />
+                <Field icon={Phone} label="Phone" value={person.phone || "—"} />
+                <Field
+                  icon={Hash}
+                  label="Employee / candidate ID"
+                  value={roster?.employeeId ?? person.publicId}
+                  mono
+                />
+                <Field icon={Users} label="Status" value={person.relationship} />
+                <Field
+                  icon={BriefcaseBusiness}
+                  label="Role"
+                  value={roster?.role ?? "Not provided"}
+                />
+                <Field
+                  icon={Building2}
+                  label="Department"
+                  value={roster?.department ?? "Not provided"}
+                />
+                <Field
+                  icon={CalendarDays}
+                  label="Joining date"
+                  value={formatOptionalDate(roster?.joiningDate)}
+                />
+                <Field
+                  icon={CalendarDays}
+                  label="Last working day"
+                  value={
+                    person.relationship === "Former Employee"
+                      ? formatOptionalDate(roster?.lastWorkingDay)
+                      : "Not applicable"
+                  }
+                />
+                <Field
+                  icon={CalendarClock}
+                  label="Date added"
+                  value={format(new Date(person.addedAt), "MMM d, yyyy")}
+                />
+                <Field icon={UserRound} label="Invited or added by" value={person.addedBy} />
+                <Field
+                  icon={Clock}
+                  label="Last activity"
+                  value={
+                    person.lastActivityAt
+                      ? formatDistanceToNow(new Date(person.lastActivityAt), { addSuffix: true })
+                      : "No activity yet"
+                  }
+                />
+              </div>
+            </SectionCard>
+            <SectionCard title="Verification" description="Current backend verification state">
+              <div className="grid gap-4 p-6 sm:grid-cols-2 lg:grid-cols-4">
+                <Metric label="Overall state" value={person.verificationStatus} />
+                <Metric
+                  label="Completed checks"
+                  value={String(person.verificationSummary.completedRequests)}
+                />
+                <Metric
+                  label="Pending checks"
+                  value={String(person.verificationSummary.activeRequests)}
+                />
+                <Metric
+                  label="Open review items"
+                  value={String(person.verificationSummary.clarificationRequiredRequests)}
+                />
+              </div>
+              <div className="border-t border-border/60 p-6 flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <div className="text-sm font-semibold">KairoID Verification Report</div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    A privacy-safe, data-driven view of checks currently available to this
+                    organization.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" className="rounded-xl" asChild>
+                    <Link to="/app/reports/$id" params={{ id: person.publicId }}>
+                      Download PDF
+                    </Link>
+                  </Button>
+                  <Button size="sm" className="btn-premium rounded-xl" asChild>
+                    <Link to="/app/reports/$id" params={{ id: person.publicId }}>
+                      View Verification Report
+                    </Link>
+                  </Button>
+                </div>
+              </div>
+            </SectionCard>
+            <PassportSection person={person} />
+            <SectionCard
+              title="Recent activity"
+              description="Latest backend-owned events for this person"
+            >
+              {person.activity.length === 0 ? (
+                <EmptyState
+                  icon={Sparkles}
+                  title="No activity yet"
+                  description="Activity will appear here as things progress."
+                />
+              ) : (
+                <ol className="p-6 relative border-l border-border/60 ml-3 space-y-5">
+                  {person.activity.slice(0, 5).map((activity) => (
+                    <li key={activity.id} className="pl-6">
+                      <span className="absolute -left-1.5 h-3 w-3 rounded-full bg-foreground" />
+                      <div className="text-sm font-medium">{activity.label}</div>
+                      <div className="text-[11px] text-muted-foreground mt-0.5">
+                        {activity.actor} · {format(new Date(activity.at), "MMM d, yyyy · HH:mm")}
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </SectionCard>
+          </div>
         </TabsContent>
 
-        <TabsContent value="passport">
-          <PassportSection person={person} />
-        </TabsContent>
-
-        <TabsContent value="requests">
+        <TabsContent value="references">
           <SectionCard
-            title="Employment Verifications"
-            description="Employment verifications received for this person from other organizations."
+            title="Reference Checks"
+            description="Professional reference requests available through the current verification contract."
           >
-            {person.employmentVerifications.length === 0 ? (
+            {referenceChecks.length === 0 ? (
               <EmptyState
-                icon={ShieldCheck}
-                title="No employment verifications yet"
-                description="When another organization requests employment verification for this person, it will appear here."
+                icon={MessageCircle}
+                title="No reference checks"
+                description="No professional reference check has been ordered for this person. Non-response is never treated as an adverse finding."
               />
             ) : (
               <div className="divide-y divide-border/60">
-                {person.employmentVerifications.map((verification) => (
+                {referenceChecks.map((verification) => (
                   <Link
                     key={verification.publicId}
                     to="/app/verifications/$id"
@@ -299,6 +388,10 @@ function PersonDetail() {
                         {formatDistanceToNow(new Date(verification.requestedAt), {
                           addSuffix: true,
                         })}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground mt-1">
+                        Open the request for structured responses, follow-ups, comments, and
+                        available evidence.
                       </div>
                     </div>
                     <VerificationPill value={verification.status} />
@@ -377,46 +470,6 @@ function PersonDetail() {
           </SectionCard>
         </TabsContent>
 
-        <TabsContent value="activity">
-          <SectionCard
-            title="Activity"
-            description="Chronological history of everything on this person"
-          >
-            {person.activity.length === 0 ? (
-              <EmptyState
-                icon={Sparkles}
-                title="No activity yet"
-                description="Activity will appear here as things progress."
-              />
-            ) : (
-              <ol className="p-6 relative border-l border-border/60 ml-3 space-y-5">
-                {person.activity.map((activity) => (
-                  <li key={activity.id} className="pl-6">
-                    <span className="absolute -left-1.5 h-3 w-3 rounded-full bg-foreground" />
-                    <div className="text-sm font-medium">{activity.label}</div>
-                    <div className="text-[11px] text-muted-foreground mt-0.5">
-                      {activity.actor} · {format(new Date(activity.at), "MMM d, yyyy · HH:mm")}
-                      {activity.requestPublicId ? (
-                        <>
-                          {" "}
-                          ·{" "}
-                          <Link
-                            to="/app/verifications/$id"
-                            params={{ id: activity.requestPublicId }}
-                            className="hover:underline"
-                          >
-                            {activity.requestPublicId}
-                          </Link>
-                        </>
-                      ) : null}
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </SectionCard>
-        </TabsContent>
-
         <TabsContent value="notes">
           <NotesSection
             notes={person.internalNotes}
@@ -452,6 +505,19 @@ function PersonDetail() {
       </Tabs>
     </div>
   );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-border/60 bg-foreground/[0.02] p-4">
+      <div className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="mt-2 text-lg font-semibold">{value}</div>
+    </div>
+  );
+}
+
+function formatOptionalDate(value: string | null | undefined) {
+  return value ? format(new Date(value), "MMM d, yyyy") : "Not provided";
 }
 
 function Field({

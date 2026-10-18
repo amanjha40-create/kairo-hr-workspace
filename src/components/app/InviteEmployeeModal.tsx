@@ -37,12 +37,20 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useCreateTrustInvitationMutation } from "@/lib/queries/trust-invitations";
 import {
   getTrustInvitationErrorMessage,
-  PURPOSE_ROLL,
   VERIFICATION_TYPES,
   type VerificationTypeKey,
 } from "@/lib/trust-invitations";
 
 type Step = 1 | 2 | 3 | 4 | 5 | 6;
+
+const CANDIDATE_ROLES = [
+  "Software Engineer",
+  "Contractor",
+  "Intern",
+  "Executive",
+  "Product Designer",
+  "Sales Lead",
+] as const;
 
 export function InviteEmployeeModal() {
   const { inviteOpen, setInviteOpen } = useDashboard();
@@ -52,11 +60,12 @@ export function InviteEmployeeModal() {
   const [step, setStep] = useState<Step>(1);
   const [sentInvitationId, setSentInvitationId] = useState<string | null>(null);
   const [sentInvitationUrl, setSentInvitationUrl] = useState<string | null>(null);
+  const [messageEdited, setMessageEdited] = useState(false);
   const [form, setForm] = useState({
     candidateName: "",
     candidateEmail: "",
     candidatePhone: "",
-    purpose: PURPOSE_ROLL[0],
+    purpose: CANDIDATE_ROLES[0] as string,
     requestedVerifications: ["identity", "employment"] as VerificationTypeKey[],
     message: "",
     expiresInDays: 7,
@@ -67,11 +76,12 @@ export function InviteEmployeeModal() {
     setSentInvitationId(null);
     setSentInvitationUrl(null);
     createInvitationMutation.reset();
+    setMessageEdited(false);
     setForm({
       candidateName: "",
       candidateEmail: "",
       candidatePhone: "",
-      purpose: PURPOSE_ROLL[0],
+      purpose: CANDIDATE_ROLES[0] as string,
       requestedVerifications: ["identity", "employment"],
       message: "",
       expiresInDays: 7,
@@ -123,6 +133,20 @@ export function InviteEmployeeModal() {
   }
 
   const invitationLink = sentInvitationUrl ?? "Invitation URL will appear here after send";
+
+  function continueToNextStep() {
+    if (step === 2 && !messageEdited) {
+      setForm((current) => ({
+        ...current,
+        message: buildDefaultInvitationMessage(
+          org?.name ?? "Your organization",
+          current.candidateName,
+          current.purpose,
+        ),
+      }));
+    }
+    setStep((step + 1) as Step);
+  }
 
   return (
     <Dialog open={inviteOpen} onOpenChange={(o) => (o ? setInviteOpen(true) : close())}>
@@ -181,8 +205,8 @@ export function InviteEmployeeModal() {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <StepHeader
                     n={1}
-                    title="Candidate & purpose"
-                    subtitle="Who are you inviting, and why?"
+                    title="Candidate & role"
+                    subtitle="Who are you inviting, and which role are they being considered for?"
                   />
                   <Field label="Full name" required>
                     <Input
@@ -206,7 +230,7 @@ export function InviteEmployeeModal() {
                       placeholder="+91 98…"
                     />
                   </Field>
-                  <Field label="Purpose" required>
+                  <Field label="Role" required>
                     <Select
                       value={form.purpose}
                       onValueChange={(v) => setForm({ ...form, purpose: v })}
@@ -215,7 +239,7 @@ export function InviteEmployeeModal() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {PURPOSE_ROLL.map((p) => (
+                        {CANDIDATE_ROLES.map((p) => (
                           <SelectItem key={p} value={p}>
                             {p}
                           </SelectItem>
@@ -271,14 +295,16 @@ export function InviteEmployeeModal() {
                 <div className="space-y-4">
                   <StepHeader
                     n={3}
-                    title="Personal message (optional)"
-                    subtitle="Add a short note. Shown to the candidate on the invitation page."
+                    title="Invitation message"
+                    subtitle="Review and edit the professional message shown to the candidate."
                   />
                   <Textarea
                     rows={5}
                     value={form.message}
-                    onChange={(e) => setForm({ ...form, message: e.target.value })}
-                    placeholder={`Hi ${form.candidateName.split(" ")[0] || "there"}, we'd love to run a quick verification for the ${form.purpose} role.`}
+                    onChange={(e) => {
+                      setMessageEdited(true);
+                      setForm({ ...form, message: e.target.value });
+                    }}
                   />
                 </div>
               )}
@@ -330,7 +356,7 @@ export function InviteEmployeeModal() {
                       label="Candidate"
                       value={`${form.candidateName} · ${form.candidateEmail}`}
                     />
-                    <Summary label="Purpose" value={form.purpose} />
+                    <Summary label="Role" value={form.purpose} />
                     <Summary
                       label="Verifications"
                       value={form.requestedVerifications
@@ -432,7 +458,7 @@ export function InviteEmployeeModal() {
                   <Button
                     className="btn-premium rounded-xl"
                     disabled={!canNext || !canInvite}
-                    onClick={() => setStep((step + 1) as Step)}
+                    onClick={continueToNextStep}
                   >
                     Continue <ArrowRight className="h-4 w-4 ml-1" />
                   </Button>
@@ -457,6 +483,15 @@ export function InviteEmployeeModal() {
       </DialogContent>
     </Dialog>
   );
+}
+
+function buildDefaultInvitationMessage(
+  organizationName: string,
+  candidateName: string,
+  role: string,
+) {
+  const firstName = candidateName.trim().split(/\s+/)[0] || "there";
+  return `Hi ${firstName}, ${organizationName} has invited you to KairoID to complete verification for the ${role} role. KairoID lets you complete verification securely and reuse verified credentials where supported.`;
 }
 
 function StepHeader({ n, title, subtitle }: { n: number; title: string; subtitle: string }) {

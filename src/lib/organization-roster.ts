@@ -1,9 +1,20 @@
 import { ApiError } from "@/lib/api/client";
 import type {
+  OrganizationRosterEmployee,
   OrganizationRosterPreview,
   RosterImportState,
   RosterPreviewRow,
 } from "@/lib/api/organization-roster-imports";
+
+export interface EmployeeRosterMetadata {
+  employeeId: string | null;
+  role: string | null;
+  department: string | null;
+  employmentStatus: string | null;
+  joiningDate: string | null;
+  lastWorkingDay: string | null;
+  location: string | null;
+}
 
 export const MAX_ROSTER_UPLOAD_BYTES = 5_000_000;
 export const MAX_ROSTER_ROWS = 10_000;
@@ -111,4 +122,36 @@ export function triggerBlobDownload(blob: Blob, filename: string) {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+
+function rosterString(data: Record<string, unknown>, key: string) {
+  const value = data[key];
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+export function getEmployeeRosterMetadata(
+  employee: OrganizationRosterEmployee | undefined,
+): EmployeeRosterMetadata | null {
+  if (!employee) return null;
+  const data = employee.roster_data ?? {};
+  return {
+    employeeId: rosterString(data, "employee_id"),
+    role: rosterString(data, "designation"),
+    department: rosterString(data, "department"),
+    employmentStatus: rosterString(data, "employment_status"),
+    joiningDate: rosterString(data, "joining_date"),
+    lastWorkingDay: rosterString(data, "exit_date"),
+    location: rosterString(data, "location"),
+  };
+}
+
+export function getRosterRoleCounts(employees: OrganizationRosterEmployee[]) {
+  const counts = new Map<string, number>();
+  employees.forEach((employee) => {
+    const role = getEmployeeRosterMetadata(employee)?.role;
+    if (role) counts.set(role, (counts.get(role) ?? 0) + 1);
+  });
+  return [...counts.entries()]
+    .map(([role, count]) => ({ role, count }))
+    .sort((left, right) => right.count - left.count || left.role.localeCompare(right.role));
 }

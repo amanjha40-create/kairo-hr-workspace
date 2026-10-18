@@ -293,7 +293,7 @@ function TeamPage() {
         role: mapTeamRoleToBackend(inviteForm.role),
       });
       setInviteStep("success");
-      toast.success("Team invitation sent");
+      toast.success("Team invitation created");
     } catch (error) {
       toast.error(getTeamErrorMessage(error, "We couldn't send that team invitation."));
     }
@@ -371,7 +371,7 @@ function TeamPage() {
 
     try {
       await resendInvitationMutation.mutateAsync(record.invitationPublicId);
-      toast.success(`Invitation resent to ${record.email}`);
+      toast.success(`Invitation validity refreshed for ${record.email}`);
     } catch (error) {
       toast.error(getTeamErrorMessage(error, "We couldn't resend that invitation."));
     }
@@ -667,7 +667,8 @@ function TeamPage() {
               <DialogHeader>
                 <DialogTitle>Invite team member</DialogTitle>
                 <DialogDescription>
-                  They'll receive an email to join the KairoID Trust Workspace.
+                  Create workspace access for an email address. Email delivery is not provided by
+                  the current team-invitation backend contract.
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 pt-2">
@@ -760,9 +761,10 @@ function TeamPage() {
                 <div className="mx-auto h-12 w-12 rounded-full bg-success/15 flex items-center justify-center mb-2">
                   <CheckCircle2 className="h-6 w-6 text-success" />
                 </div>
-                <DialogTitle className="text-center">Invitation sent</DialogTitle>
+                <DialogTitle className="text-center">Invitation created</DialogTitle>
                 <DialogDescription className="text-center">
-                  We've emailed {inviteForm.email} an invitation to join your workspace.
+                  Access for {inviteForm.email} is pending. The current backend stores the
+                  invitation but does not dispatch a team-invitation email.
                 </DialogDescription>
               </DialogHeader>
               <DialogFooter className="pt-4 sm:justify-center gap-2">

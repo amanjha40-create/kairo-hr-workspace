@@ -45,6 +45,7 @@ import {
 } from "@/lib/organization-people";
 import { useOrganizationPeopleDirectoryQuery } from "@/lib/queries/organization-people";
 import { useRosterEmployeesQuery } from "@/lib/queries/organization-roster-imports";
+import { getEmployeeRosterMetadata, getRosterRoleCounts } from "@/lib/organization-roster";
 import {
   AlertTriangle,
   Bell,
@@ -152,6 +153,13 @@ function PeoplePage() {
   const rosterPersonIds = new Set(
     (rosterEmployeesQuery.data?.items ?? []).map((employee) => employee.organization_person_id),
   );
+  const rosterByPersonId = new Map(
+    (rosterEmployeesQuery.data?.items ?? []).map((employee) => [
+      employee.organization_person_id,
+      getEmployeeRosterMetadata(employee),
+    ]),
+  );
+  const roleCounts = getRosterRoleCounts(rosterEmployeesQuery.data?.items ?? []);
   const addedByOptions = useMemo(
     () =>
       Array.from(
@@ -266,6 +274,25 @@ function PeoplePage() {
         />
       ) : null}
 
+      {canManageRoster && roleCounts.length > 0 ? (
+        <SectionCard
+          title="People by role"
+          description="Derived from organization-provided employee roster data"
+        >
+          <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
+            {roleCounts.map(({ role, count }) => (
+              <div
+                key={role}
+                className="rounded-xl border border-border/60 bg-foreground/[0.02] p-4"
+              >
+                <div className="truncate text-sm font-medium">{role}</div>
+                <div className="mt-2 text-2xl font-semibold tabular-nums">{count}</div>
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+      ) : null}
+
       <div className="grid gap-3 mb-4">
         <div className="relative">
           <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -377,13 +404,12 @@ function PeoplePage() {
                 <thead className="text-[11px] uppercase tracking-wider text-muted-foreground">
                   <tr className="border-b border-border/60">
                     <th className="text-left font-medium py-2.5 px-4">Person</th>
-                    <th className="text-left font-medium py-2.5 px-3">Relationship</th>
-                    <th className="text-left font-medium py-2.5 px-3">Invitation</th>
+                    <th className="text-left font-medium py-2.5 px-3">Role</th>
+                    <th className="text-left font-medium py-2.5 px-3">Department</th>
+                    <th className="text-left font-medium py-2.5 px-3">Status</th>
                     <th className="text-left font-medium py-2.5 px-3">Verification</th>
                     <th className="text-left font-medium py-2.5 px-3">Shared Passport</th>
                     <th className="text-left font-medium py-2.5 px-3">Last Activity</th>
-                    <th className="text-left font-medium py-2.5 px-3">Added by</th>
-                    <th className="text-left font-medium py-2.5 px-3">Date added</th>
                     <th className="text-right font-medium py-2.5 px-4">Actions</th>
                   </tr>
                 </thead>
@@ -408,11 +434,14 @@ function PeoplePage() {
                           </div>
                         </Link>
                       </td>
-                      <td className="py-3 px-3">
-                        <RelationshipPill value={person.relationship} />
+                      <td className="py-3 px-3 text-xs text-muted-foreground">
+                        {rosterByPersonId.get(person.publicId)?.role ?? "—"}
+                      </td>
+                      <td className="py-3 px-3 text-xs text-muted-foreground">
+                        {rosterByPersonId.get(person.publicId)?.department ?? "—"}
                       </td>
                       <td className="py-3 px-3">
-                        <InvitationPill value={person.invitationStatus} />
+                        <RelationshipPill value={person.relationship} />
                       </td>
                       <td className="py-3 px-3">
                         <VerificationPill value={person.verificationStatus} />
@@ -426,10 +455,6 @@ function PeoplePage() {
                               addSuffix: true,
                             })
                           : "No activity yet"}
-                      </td>
-                      <td className="py-3 px-3 text-xs text-muted-foreground">{person.addedBy}</td>
-                      <td className="py-3 px-3 text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(person.addedAt), { addSuffix: true })}
                       </td>
                       <td className="py-3 px-4 text-right">
                         <RowActions personId={person.publicId} passport={person.passportStatus} />
@@ -465,6 +490,12 @@ function PeoplePage() {
                     <InvitationPill value={person.invitationStatus} />
                     <VerificationPill value={person.verificationStatus} />
                     <PassportPill value={person.passportStatus} />
+                  </div>
+                  <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] text-muted-foreground">
+                    <span>Role: {rosterByPersonId.get(person.publicId)?.role ?? "—"}</span>
+                    <span>
+                      Department: {rosterByPersonId.get(person.publicId)?.department ?? "—"}
+                    </span>
                   </div>
                   <div className="mt-2 text-[11px] text-muted-foreground">
                     Last activity{" "}

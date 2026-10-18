@@ -27,8 +27,10 @@ import { Route as AppNotificationsRouteImport } from './routes/app.notifications
 import { Route as AppInvitationsRouteImport } from './routes/app.invitations'
 import { Route as AppSplatRouteImport } from './routes/app.$'
 import { Route as AppVerificationsIndexRouteImport } from './routes/app.verifications.index'
+import { Route as AppReportsIndexRouteImport } from './routes/app.reports.index'
 import { Route as AppPeopleIndexRouteImport } from './routes/app.people.index'
 import { Route as AppVerificationsIdRouteImport } from './routes/app.verifications.$id'
+import { Route as AppReportsIdRouteImport } from './routes/app.reports.$id'
 import { Route as AppPeopleIdRouteImport } from './routes/app.people.$id'
 import { Route as AppInvitationsIdRouteImport } from './routes/app.invitations.$id'
 import { Route as AppPeopleImportsIndexRouteImport } from './routes/app.people.imports.index'
@@ -125,6 +127,11 @@ const AppVerificationsIndexRoute = AppVerificationsIndexRouteImport.update({
   path: '/verifications/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppReportsIndexRoute = AppReportsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppReportsRoute,
+} as any)
 const AppPeopleIndexRoute = AppPeopleIndexRouteImport.update({
   id: '/people/',
   path: '/people/',
@@ -134,6 +141,11 @@ const AppVerificationsIdRoute = AppVerificationsIdRouteImport.update({
   id: '/verifications/$id',
   path: '/verifications/$id',
   getParentRoute: () => AppRoute,
+} as any)
+const AppReportsIdRoute = AppReportsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => AppReportsRoute,
 } as any)
 const AppPeopleIdRoute = AppPeopleIdRouteImport.update({
   id: '/people/$id',
@@ -168,7 +180,7 @@ export interface FileRoutesByFullPath {
   '/app/invitations': typeof AppInvitationsRouteWithChildren
   '/app/notifications': typeof AppNotificationsRoute
   '/app/profile': typeof AppProfileRoute
-  '/app/reports': typeof AppReportsRoute
+  '/app/reports': typeof AppReportsRouteWithChildren
   '/app/settings': typeof AppSettingsRoute
   '/app/setup': typeof AppSetupRoute
   '/app/team': typeof AppTeamRoute
@@ -176,8 +188,10 @@ export interface FileRoutesByFullPath {
   '/app/': typeof AppIndexRoute
   '/app/invitations/$id': typeof AppInvitationsIdRoute
   '/app/people/$id': typeof AppPeopleIdRoute
+  '/app/reports/$id': typeof AppReportsIdRoute
   '/app/verifications/$id': typeof AppVerificationsIdRoute
   '/app/people/': typeof AppPeopleIndexRoute
+  '/app/reports/': typeof AppReportsIndexRoute
   '/app/verifications/': typeof AppVerificationsIndexRoute
   '/app/people/imports/$id': typeof AppPeopleImportsIdRoute
   '/app/people/imports/': typeof AppPeopleImportsIndexRoute
@@ -193,7 +207,6 @@ export interface FileRoutesByTo {
   '/app/invitations': typeof AppInvitationsRouteWithChildren
   '/app/notifications': typeof AppNotificationsRoute
   '/app/profile': typeof AppProfileRoute
-  '/app/reports': typeof AppReportsRoute
   '/app/settings': typeof AppSettingsRoute
   '/app/setup': typeof AppSetupRoute
   '/app/team': typeof AppTeamRoute
@@ -201,8 +214,10 @@ export interface FileRoutesByTo {
   '/app': typeof AppIndexRoute
   '/app/invitations/$id': typeof AppInvitationsIdRoute
   '/app/people/$id': typeof AppPeopleIdRoute
+  '/app/reports/$id': typeof AppReportsIdRoute
   '/app/verifications/$id': typeof AppVerificationsIdRoute
   '/app/people': typeof AppPeopleIndexRoute
+  '/app/reports': typeof AppReportsIndexRoute
   '/app/verifications': typeof AppVerificationsIndexRoute
   '/app/people/imports/$id': typeof AppPeopleImportsIdRoute
   '/app/people/imports': typeof AppPeopleImportsIndexRoute
@@ -220,7 +235,7 @@ export interface FileRoutesById {
   '/app/invitations': typeof AppInvitationsRouteWithChildren
   '/app/notifications': typeof AppNotificationsRoute
   '/app/profile': typeof AppProfileRoute
-  '/app/reports': typeof AppReportsRoute
+  '/app/reports': typeof AppReportsRouteWithChildren
   '/app/settings': typeof AppSettingsRoute
   '/app/setup': typeof AppSetupRoute
   '/app/team': typeof AppTeamRoute
@@ -228,8 +243,10 @@ export interface FileRoutesById {
   '/app/': typeof AppIndexRoute
   '/app/invitations/$id': typeof AppInvitationsIdRoute
   '/app/people/$id': typeof AppPeopleIdRoute
+  '/app/reports/$id': typeof AppReportsIdRoute
   '/app/verifications/$id': typeof AppVerificationsIdRoute
   '/app/people/': typeof AppPeopleIndexRoute
+  '/app/reports/': typeof AppReportsIndexRoute
   '/app/verifications/': typeof AppVerificationsIndexRoute
   '/app/people/imports/$id': typeof AppPeopleImportsIdRoute
   '/app/people/imports/': typeof AppPeopleImportsIndexRoute
@@ -256,8 +273,10 @@ export interface FileRouteTypes {
     | '/app/'
     | '/app/invitations/$id'
     | '/app/people/$id'
+    | '/app/reports/$id'
     | '/app/verifications/$id'
     | '/app/people/'
+    | '/app/reports/'
     | '/app/verifications/'
     | '/app/people/imports/$id'
     | '/app/people/imports/'
@@ -273,7 +292,6 @@ export interface FileRouteTypes {
     | '/app/invitations'
     | '/app/notifications'
     | '/app/profile'
-    | '/app/reports'
     | '/app/settings'
     | '/app/setup'
     | '/app/team'
@@ -281,8 +299,10 @@ export interface FileRouteTypes {
     | '/app'
     | '/app/invitations/$id'
     | '/app/people/$id'
+    | '/app/reports/$id'
     | '/app/verifications/$id'
     | '/app/people'
+    | '/app/reports'
     | '/app/verifications'
     | '/app/people/imports/$id'
     | '/app/people/imports'
@@ -307,8 +327,10 @@ export interface FileRouteTypes {
     | '/app/'
     | '/app/invitations/$id'
     | '/app/people/$id'
+    | '/app/reports/$id'
     | '/app/verifications/$id'
     | '/app/people/'
+    | '/app/reports/'
     | '/app/verifications/'
     | '/app/people/imports/$id'
     | '/app/people/imports/'
@@ -453,6 +475,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppVerificationsIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/reports/': {
+      id: '/app/reports/'
+      path: '/'
+      fullPath: '/app/reports/'
+      preLoaderRoute: typeof AppReportsIndexRouteImport
+      parentRoute: typeof AppReportsRoute
+    }
     '/app/people/': {
       id: '/app/people/'
       path: '/people'
@@ -466,6 +495,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/app/verifications/$id'
       preLoaderRoute: typeof AppVerificationsIdRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/app/reports/$id': {
+      id: '/app/reports/$id'
+      path: '/$id'
+      fullPath: '/app/reports/$id'
+      preLoaderRoute: typeof AppReportsIdRouteImport
+      parentRoute: typeof AppReportsRoute
     }
     '/app/people/$id': {
       id: '/app/people/$id'
@@ -510,12 +546,26 @@ const AppInvitationsRouteWithChildren = AppInvitationsRoute._addFileChildren(
   AppInvitationsRouteChildren,
 )
 
+interface AppReportsRouteChildren {
+  AppReportsIdRoute: typeof AppReportsIdRoute
+  AppReportsIndexRoute: typeof AppReportsIndexRoute
+}
+
+const AppReportsRouteChildren: AppReportsRouteChildren = {
+  AppReportsIdRoute: AppReportsIdRoute,
+  AppReportsIndexRoute: AppReportsIndexRoute,
+}
+
+const AppReportsRouteWithChildren = AppReportsRoute._addFileChildren(
+  AppReportsRouteChildren,
+)
+
 interface AppRouteChildren {
   AppSplatRoute: typeof AppSplatRoute
   AppInvitationsRoute: typeof AppInvitationsRouteWithChildren
   AppNotificationsRoute: typeof AppNotificationsRoute
   AppProfileRoute: typeof AppProfileRoute
-  AppReportsRoute: typeof AppReportsRoute
+  AppReportsRoute: typeof AppReportsRouteWithChildren
   AppSettingsRoute: typeof AppSettingsRoute
   AppSetupRoute: typeof AppSetupRoute
   AppTeamRoute: typeof AppTeamRoute
@@ -533,7 +583,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppInvitationsRoute: AppInvitationsRouteWithChildren,
   AppNotificationsRoute: AppNotificationsRoute,
   AppProfileRoute: AppProfileRoute,
-  AppReportsRoute: AppReportsRoute,
+  AppReportsRoute: AppReportsRouteWithChildren,
   AppSettingsRoute: AppSettingsRoute,
   AppSetupRoute: AppSetupRoute,
   AppTeamRoute: AppTeamRoute,

@@ -51,16 +51,19 @@ export interface BackendPage<T> {
 
 export interface BackendVerificationRequestResponse {
   public_id: string;
+  candidate_user_public_id?: string | null;
   employment_id: string | null;
+  education_id?: string | null;
   origin_type: string | null;
   organization_public_id: string | null;
   trust_invitation_public_id: string | null;
   subject_name: string;
-  subject_email: string;
+  subject_email: string | null;
   target_organization_name: string | null;
   target_organization_email: string | null;
   request_type: BackendVerificationRequestType;
   status: BackendVerificationRequestStatus;
+  priority?: "low" | "normal" | "high" | "urgent";
   due_date: string | null;
   trust_context: Record<string, unknown>;
   created_at: string;
@@ -68,6 +71,8 @@ export interface BackendVerificationRequestResponse {
   candidate_response: string | null;
   candidate_response_submitted_at: string | null;
   accepted_at: string | null;
+  consented_at?: string | null;
+  consent_version?: string | null;
   consented_fields: string[];
   consented_evidence_scope: string[];
   target_organization_metadata: Record<string, unknown>;
@@ -91,6 +96,13 @@ export interface BackendVerificationRequestResponse {
     employment_type: string | null;
     work_location_country: string | null;
     work_location_region: string | null;
+  } | null;
+  education_claim?: {
+    institution_name: string | null;
+    degree: string | null;
+    field_of_study: string | null;
+    start_date: string | null;
+    end_date: string | null;
   } | null;
   evidence_summary: {
     total_items: number;

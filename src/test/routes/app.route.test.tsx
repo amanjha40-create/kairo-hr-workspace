@@ -179,6 +179,14 @@ describe("Authenticated app shell", () => {
     expect(screen.getByText("route-outlet")).toBeInTheDocument();
   });
 
+  it("keeps invitation entry points out of the global shell and pins sidebar controls", () => {
+    const { container } = render(<AppRoute />);
+
+    expect(screen.queryByText("Invite candidate")).not.toBeInTheDocument();
+    expect(container.querySelector("aside")).toHaveClass("h-dvh", "overflow-hidden");
+    expect(container.querySelector("aside nav")).toHaveClass("overflow-y-auto");
+  });
+
   it("renders the organization verification banner when applicable", () => {
     accessState.state = "verification_pending";
 

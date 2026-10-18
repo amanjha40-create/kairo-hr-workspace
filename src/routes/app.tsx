@@ -13,7 +13,6 @@ import {
   Settings,
   LogOut,
   Loader2,
-  Plus,
   User,
   CircleUser,
   Menu,
@@ -160,6 +159,11 @@ const routePermissionRules: Array<{
   message: string;
 }> = [
   {
+    prefix: "/app/reports",
+    action: "modify_person",
+    message: "You don't have permission to view verification reports in this workspace.",
+  },
+  {
     prefix: "/app/people",
     action: "modify_person",
     message: "You don't have permission to view People in this workspace.",
@@ -196,7 +200,7 @@ function getRoutePermission(path: string) {
 
 function NavList({ path, onClick }: { path: string; onClick?: () => void }) {
   return (
-    <nav className="p-3 space-y-0.5 flex-1">
+    <nav className="min-h-0 flex-1 overflow-y-auto p-3 space-y-0.5">
       {nav.map((n) => {
         const active = n.exact ? path === n.to : path.startsWith(n.to);
         return (
@@ -223,7 +227,7 @@ function AppLayout() {
   const { user, session, loading, signOut } = useAuth();
   const navigate = useNavigate();
   const path = useRouterState({ select: (s) => s.location.pathname });
-  const { search, setSearch, setInviteOpen } = useDashboard();
+  const { search, setSearch } = useDashboard();
   const { role, org, can, state: accessState } = useAccess();
   const searchRef = useRef<HTMLInputElement>(null);
   const gPressed = useRef(false);
@@ -252,12 +256,6 @@ function AppLayout() {
         searchRef.current?.focus();
         return;
       }
-      if (e.key.toLowerCase() === "n") {
-        if (!can("invite_candidate")) return;
-        e.preventDefault();
-        setInviteOpen(true);
-        return;
-      }
       if (e.key.toLowerCase() === "g") {
         gPressed.current = true;
         setTimeout(() => (gPressed.current = false), 800);
@@ -273,7 +271,7 @@ function AppLayout() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [can, navigate, setInviteOpen]);
+  }, [navigate]);
 
   if (loading || !session) {
     return (
@@ -293,17 +291,17 @@ function AppLayout() {
     .toUpperCase();
 
   return (
-    <div className="min-h-screen flex bg-[hsl(var(--background))]">
+    <div className="h-dvh overflow-hidden flex bg-[hsl(var(--background))]">
       {/* Desktop sidebar */}
-      <aside className="hidden lg:flex w-64 flex-col border-r border-border/60 bg-background sticky top-0 h-screen">
-        <div className="h-16 flex items-center gap-2 px-5 border-b border-border/60">
+      <aside className="hidden lg:flex h-dvh w-64 shrink-0 flex-col overflow-hidden border-r border-border/60 bg-background">
+        <div className="h-16 shrink-0 flex items-center gap-2 px-5 border-b border-border/60">
           <Logo className="h-5" />
           <span className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground font-medium border-l border-border/60 pl-2 ml-1">
             Trust Workspace
           </span>
         </div>
         <NavList path={path} />
-        <div className="p-3 border-t border-border/60">
+        <div className="shrink-0 p-3 border-t border-border/60 bg-background">
           <Link
             to="/app/profile"
             className="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-foreground/[0.04]"
@@ -324,8 +322,8 @@ function AppLayout() {
         </div>
       </aside>
 
-      <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-16 border-b border-border/60 bg-background/95 backdrop-blur flex items-center px-3 md:px-6 sticky top-0 z-30 gap-2 md:gap-3">
+      <div className="min-w-0 min-h-0 flex-1 flex flex-col overflow-hidden">
+        <header className="h-16 shrink-0 border-b border-border/60 bg-background/95 backdrop-blur flex items-center px-3 md:px-6 z-30 gap-2 md:gap-3">
           {/* Mobile menu */}
           <Sheet>
             <SheetTrigger asChild>
@@ -333,7 +331,7 @@ function AppLayout() {
                 <Menu className="h-5 w-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-72 p-0">
+            <SheetContent side="left" className="flex h-dvh w-72 flex-col overflow-hidden p-0">
               <div className="h-16 flex items-center gap-2 px-5 border-b border-border/60">
                 <Logo className="h-5" />
                 <span className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground font-medium border-l border-border/60 pl-2 ml-1">
@@ -358,22 +356,14 @@ function AppLayout() {
             </kbd>
           </div>
 
-          {can("invite_candidate") ? (
-            <Button
-              onClick={() => setInviteOpen(true)}
-              className="btn-premium rounded-xl hidden sm:inline-flex"
-              size="sm"
-            >
-              <Plus className="h-4 w-4 mr-1.5" /> Invite candidate
-            </Button>
-          ) : (
+          {!can("invite_candidate") ? (
             <Badge
               variant="outline"
               className="hidden sm:inline-flex h-8 items-center text-[11px] font-medium"
             >
               {role} · read-only
             </Badge>
-          )}
+          ) : null}
 
           <NotificationsPopover />
 
@@ -419,23 +409,25 @@ function AppLayout() {
         </header>
 
         {accessState === "verification_pending" && <VerificationPendingBanner />}
-        <main className="flex-1 p-4 md:p-8 max-w-[1500px] w-full mx-auto">
-          {accessState === "access_denied" ? (
-            <AccessDeniedScreen message="You don't have access to this workspace." />
-          ) : permissionDenied ? (
-            <AccessDeniedScreen message={routePermission?.message} />
-          ) : (
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={path}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.2 }}
-              >
-                <Outlet />
-              </motion.div>
-            </AnimatePresence>
-          )}
+        <main className="min-h-0 flex-1 overflow-y-auto p-4 md:p-8">
+          <div className="max-w-[1500px] w-full mx-auto">
+            {accessState === "access_denied" ? (
+              <AccessDeniedScreen message="You don't have access to this workspace." />
+            ) : permissionDenied ? (
+              <AccessDeniedScreen message={routePermission?.message} />
+            ) : (
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={path}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <Outlet />
+                </motion.div>
+              </AnimatePresence>
+            )}
+          </div>
         </main>
       </div>
 

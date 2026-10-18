@@ -25,6 +25,26 @@ const detailQueryState = {
   refetch: refetchSpy,
 };
 
+const rosterEmployeesQueryState = {
+  data: {
+    items: [
+      {
+        organization_person_id: "person_123",
+        roster_data: {
+          employee_id: "EMP-123",
+          designation: "Software Engineer",
+          department: "Engineering",
+          joining_date: "2025-01-15",
+          exit_date: "2026-08-31",
+          employment_status: "active",
+        },
+      },
+    ],
+  },
+  isPending: false,
+  error: null,
+};
+
 vi.mock("@tanstack/react-router", () => ({
   createFileRoute: (_path: string) => (options: Record<string, unknown>) => ({
     options,
@@ -140,11 +160,7 @@ vi.mock("@/lib/queries/organization-people", () => ({
 }));
 
 vi.mock("@/lib/queries/organization-roster-imports", () => ({
-  useRosterEmployeesQuery: () => ({
-    data: { items: [{ organization_person_id: "person_123" }] },
-    isPending: false,
-    error: null,
-  }),
+  useRosterEmployeesQuery: () => rosterEmployeesQueryState,
 }));
 
 const { Route } = await import("../../routes/app.people.$id");
@@ -162,6 +178,7 @@ describe("Person detail page", () => {
     detailQueryState.data = makePersonDetailRecord();
     detailQueryState.isPending = false;
     detailQueryState.error = null;
+    rosterEmployeesQueryState.data.items[0].roster_data.employment_status = "active";
   });
 
   it("renders a loading state while the backend person detail is pending", () => {
@@ -177,10 +194,27 @@ describe("Person detail page", () => {
     render(<PersonDetail />);
 
     expect(screen.getAllByText("Aman Joshi").length).toBeGreaterThan(0);
-    expect(screen.getByText("Employment Verification")).toBeInTheDocument();
     expect(screen.getByText("offer-letter.pdf")).toBeInTheDocument();
     expect(screen.getByText("Strong match on submitted evidence.")).toBeInTheDocument();
     expect(screen.getByText(/organization-provided · not KairoID-verified/i)).toBeInTheDocument();
+    expect(screen.getByText("Summary")).toBeInTheDocument();
+    expect(screen.getByText("Reference Checks")).toBeInTheDocument();
+    expect(screen.getByText("Shared Evidence")).toBeInTheDocument();
+    expect(screen.getByText("Internal Notes")).toBeInTheDocument();
+    expect(screen.queryByText("Shared Trust Passport")).not.toBeInTheDocument();
+    expect(screen.getByText("Software Engineer")).toBeInTheDocument();
+    expect(screen.getByText("Engineering")).toBeInTheDocument();
+    expect(screen.getAllByText("View Verification Report").length).toBeGreaterThan(0);
+  });
+
+  it("shows authoritative former-employee status and last working day", () => {
+    detailQueryState.data = makePersonDetailRecord({ relationship: "Former Employee" });
+    rosterEmployeesQueryState.data.items[0].roster_data.employment_status = "former";
+
+    render(<PersonDetail />);
+
+    expect(screen.getAllByText("Former Employee").length).toBeGreaterThan(0);
+    expect(screen.getByText("Aug 31, 2026")).toBeInTheDocument();
   });
 
   it("preserves the restricted passport state from backend detail", () => {

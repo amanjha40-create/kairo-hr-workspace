@@ -428,7 +428,10 @@ describe("Team page", () => {
         role: "member",
       });
     });
-    expect(toastSuccessSpy).toHaveBeenCalledWith("Team invitation sent");
+    expect(toastSuccessSpy).toHaveBeenCalledWith("Team invitation created");
+    expect(
+      screen.getByText(/current backend stores the invitation but does not dispatch/i),
+    ).toBeInTheDocument();
   });
 
   it("shows permission denied when team access is unavailable", () => {

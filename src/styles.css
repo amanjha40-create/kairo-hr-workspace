@@ -285,3 +285,33 @@ a, button, [role="button"] { -webkit-tap-highlight-color: transparent; touch-act
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }
+
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  #verification-report,
+  #verification-report * {
+    visibility: visible;
+  }
+
+  #verification-report {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .report-section {
+    break-inside: avoid;
+  }
+}

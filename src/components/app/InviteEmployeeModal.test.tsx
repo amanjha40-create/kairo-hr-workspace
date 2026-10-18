@@ -18,8 +18,11 @@ const dashboardState = {
   setInviteOpen: setInviteOpenSpy,
 };
 
-const accessState: { org: { publicId: string } | null; can: (action: string) => boolean } = {
-  org: { publicId: "org_123" },
+const accessState: {
+  org: { publicId: string; name: string } | null;
+  can: (action: string) => boolean;
+} = {
+  org: { publicId: "org_123", name: "Acme Limited" },
   can: (action: string) => action === "invite_candidate",
 };
 
@@ -182,7 +185,7 @@ describe("InviteEmployeeModal", () => {
     toastSuccessSpy.mockReset();
     toastErrorSpy.mockReset();
     dashboardState.inviteOpen = true;
-    accessState.org = { publicId: "org_123" };
+    accessState.org = { publicId: "org_123", name: "Acme Limited" };
     accessState.can = (action: string) => action === "invite_candidate";
   });
 
@@ -224,11 +227,32 @@ describe("InviteEmployeeModal", () => {
           subject_email: "aman@example.com",
           delivery_method: "email",
           mode: "send",
+          purpose: "Software Engineer",
+          message: expect.stringContaining(
+            "Acme Limited has invited you to KairoID to complete verification for the Software Engineer role",
+          ),
         }),
       );
       expect(screen.getByText("Invitation sent")).toBeInTheDocument();
       expect(screen.getByText("https://trust.kairo.dev/invitations/ti_123")).toBeInTheDocument();
     });
+  });
+
+  it("uses Role as the structured field and allows the default message to be edited", async () => {
+    render(<InviteEmployeeModal />);
+
+    fireEvent.change(screen.getByLabelText("Aman Joshi"), { target: { value: "Aman Joshi" } });
+    fireEvent.change(screen.getByLabelText("aman@example.com"), {
+      target: { value: "aman@example.com" },
+    });
+    expect(screen.getByText("Role")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Continue"));
+    fireEvent.click(screen.getByText("Continue"));
+
+    const message = screen.getByRole("textbox");
+    expect((message as HTMLTextAreaElement).value).toContain("Acme Limited has invited you");
+    fireEvent.change(message, { target: { value: "A custom professional note." } });
+    expect(message).toHaveValue("A custom professional note.");
   });
 
   it("surfaces backend create failures without clearing the form", async () => {
