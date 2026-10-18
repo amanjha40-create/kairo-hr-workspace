@@ -12,6 +12,8 @@ export type TeamStatus =
   | "Active"
   | "Suspended"
   | "Invitation Pending"
+  | "Invitation Sent"
+  | "Invitation Delivery Failed"
   | "Invitation Expired"
   | "Invitation Cancelled"
   | "Invitation Declined"
@@ -35,6 +37,9 @@ export interface TeamRecord {
   invitedBy: string;
   invitedByLabel: string;
   suspensionReason: string | null;
+  tokenExpiresAt?: string;
+  lastSentAt?: string;
+  deliveryFailedAt?: string;
 }
 
 export const TEAM_ROLES: TeamRole[] = ["Owner", "Admin", "Reviewer", "Member"];
@@ -44,6 +49,8 @@ export const TEAM_ASSIGNABLE_ROLES: TeamRole[] = ["Admin", "Reviewer", "Member"]
 export const TEAM_STATUSES: TeamStatus[] = [
   "Active",
   "Invitation Pending",
+  "Invitation Sent",
+  "Invitation Delivery Failed",
   "Invitation Expired",
   "Invitation Cancelled",
   "Invitation Declined",
@@ -69,6 +76,8 @@ export const TEAM_STATUS_STYLE: Record<TeamStatus, string> = {
   Active: "bg-success/15 text-success border-success/25",
   Suspended: "bg-foreground/[0.06] text-muted-foreground border-border/60",
   "Invitation Pending": "bg-warning/15 text-warning-foreground border-warning/25",
+  "Invitation Sent": "bg-info/15 text-info-foreground border-info/25",
+  "Invitation Delivery Failed": "bg-destructive/10 text-destructive border-destructive/25",
   "Invitation Expired": "bg-destructive/10 text-destructive border-destructive/25",
   "Invitation Cancelled": "bg-foreground/[0.06] text-muted-foreground border-border/60",
   "Invitation Declined": "bg-foreground/[0.06] text-muted-foreground border-border/60",
@@ -101,9 +110,11 @@ export function mapTeamRoleToBackend(role: TeamRole): BackendOrganizationMemberR
   }
 }
 
-export function mapInvitationStatus(status: BackendOrganizationInvitationStatus): TeamStatus {
-  switch (status) {
+export function mapInvitationStatus(invitation: BackendOrganizationInvitationResponse): TeamStatus {
+  switch (invitation.status) {
     case "pending":
+      if (invitation.delivery_failed_at) return "Invitation Delivery Failed";
+      if (invitation.last_sent_at) return "Invitation Sent";
       return "Invitation Pending";
     case "expired":
       return "Invitation Expired";
@@ -178,7 +189,7 @@ export function buildTeamRecords(
       name: invitation.invitee_email,
       email: invitation.invitee_email,
       role: mapBackendTeamRole(invitation.role),
-      status: mapInvitationStatus(invitation.status),
+      status: mapInvitationStatus(invitation),
       lastActive: "—",
       joinedAt: formatTeamDate(invitation.invited_at),
       joinedAtLabel: "Invited",
@@ -186,6 +197,9 @@ export function buildTeamRecords(
       invitedBy: invitation.invited_by_full_name ?? invitation.invited_by_email,
       invitedByLabel: "Invited by",
       suspensionReason: null,
+      tokenExpiresAt: invitation.token_expires_at ?? undefined,
+      lastSentAt: invitation.last_sent_at ?? undefined,
+      deliveryFailedAt: invitation.delivery_failed_at ?? undefined,
     }));
 
   return [...memberRecords, ...invitationRecords].sort((left, right) =>

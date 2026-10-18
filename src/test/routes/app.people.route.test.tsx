@@ -149,6 +149,10 @@ vi.mock("@/components/app/access/PermissionDenied", () => ({
   PermissionDenied: ({ message }: { message: string }) => <div>{message}</div>,
 }));
 
+vi.mock("@/components/app/OrganizationRolesCard", () => ({
+  OrganizationRolesCard: () => <div>canonical-role-counts</div>,
+}));
+
 vi.mock("@/components/app/workspace-pills", () => ({
   InvitationPill: ({ value }: { value: string }) => <span>{value}</span>,
   PassportPill: ({ value }: { value: string }) => <span>{value}</span>,
@@ -229,6 +233,8 @@ describe("People directory page", () => {
         byVerificationStatus: {},
         byPassportStatus: {},
         byTrustState: {},
+        byRole: {},
+        byEmploymentStatus: {},
       },
     });
     filteredPeopleQueryState.data = allPeopleQueryState.data;

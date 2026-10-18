@@ -170,6 +170,29 @@ vi.mock("@/lib/queries/trust-invitations", () => ({
   }),
 }));
 
+vi.mock("@/lib/queries/hr-v2", () => ({
+  useOrganizationJobRolesQuery: () => ({
+    data: [
+      {
+        public_id: "role_software_engineer",
+        name: "Software Engineer",
+        description: null,
+        is_active: true,
+        assigned_people_count: 2,
+        created_at: "2026-10-18T00:00:00Z",
+        updated_at: "2026-10-18T00:00:00Z",
+      },
+    ],
+    isPending: false,
+  }),
+  useOrganizationVerificationPreferencesQuery: () => ({
+    data: {
+      checks: { identity: true, employment: true, education: false, references: false },
+      reference_count: 0,
+    },
+  }),
+}));
+
 vi.mock("sonner", () => ({
   toast: {
     success: toastSuccessSpy,
@@ -227,7 +250,9 @@ describe("InviteEmployeeModal", () => {
           subject_email: "aman@example.com",
           delivery_method: "email",
           mode: "send",
+          role_id: "role_software_engineer",
           purpose: "Software Engineer",
+          requested_verification_types: [],
           message: expect.stringContaining(
             "Acme Limited has invited you to KairoID to complete verification for the Software Engineer role",
           ),

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ComponentType, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { makePersonDetailRecord } from "@/test/organization-people-fixtures";
@@ -7,6 +7,12 @@ const refetchSpy = vi.fn();
 const addNoteSpy = vi.fn();
 const updateNoteSpy = vi.fn();
 const deleteNoteSpy = vi.fn();
+const lifecycleMutationSpy = vi.fn();
+const profileMutationSpy = vi.fn();
+const lifecycleMutationState = {
+  isPending: false,
+  error: null as unknown,
+};
 
 const accessState: {
   org: { publicId: string } | null;
@@ -163,6 +169,21 @@ vi.mock("@/lib/queries/organization-roster-imports", () => ({
   useRosterEmployeesQuery: () => rosterEmployeesQueryState,
 }));
 
+vi.mock("@/lib/queries/hr-v2", () => ({
+  useEmployeeLifecycleMutation: () => ({
+    mutateAsync: lifecycleMutationSpy,
+    isPending: lifecycleMutationState.isPending,
+    error: lifecycleMutationState.error,
+    reset: vi.fn(),
+  }),
+  useEmploymentProfileMutation: () => ({
+    mutateAsync: profileMutationSpy,
+    isPending: false,
+    error: null,
+  }),
+  useOrganizationJobRolesQuery: () => ({ data: [], isPending: false }),
+}));
+
 const { Route } = await import("../../routes/app.people.$id");
 const PersonDetail = Route.options.component as ComponentType;
 
@@ -172,6 +193,11 @@ describe("Person detail page", () => {
     addNoteSpy.mockReset();
     updateNoteSpy.mockReset();
     deleteNoteSpy.mockReset();
+    lifecycleMutationSpy.mockReset();
+    profileMutationSpy.mockReset();
+    lifecycleMutationSpy.mockResolvedValue({ employment_status: "ex_employee" });
+    lifecycleMutationState.isPending = false;
+    lifecycleMutationState.error = null;
     accessState.org = { publicId: "org_123" };
     accessState.membershipRole = "owner";
     accessState.can = (action: string) => action === "modify_person";
@@ -208,13 +234,73 @@ describe("Person detail page", () => {
   });
 
   it("shows authoritative former-employee status and last working day", () => {
-    detailQueryState.data = makePersonDetailRecord({ relationship: "Former Employee" });
+    detailQueryState.data = makePersonDetailRecord({
+      relationship: "Former Employee",
+      employmentStatus: "ex_employee",
+      lastWorkingDay: "2026-08-31",
+    });
     rosterEmployeesQueryState.data.items[0].roster_data.employment_status = "former";
 
     render(<PersonDetail />);
 
     expect(screen.getAllByText("Former Employee").length).toBeGreaterThan(0);
     expect(screen.getByText("Aug 31, 2026")).toBeInTheDocument();
+  });
+
+  it("requires and submits Last Working Day for the canonical lifecycle mutation", async () => {
+    render(<PersonDetail />);
+    fireEvent.click(screen.getByText("Mark as ex-employee"));
+
+    expect(screen.getByText("Confirm ex-employee")).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Last working day"), {
+      target: { value: "2026-10-18" },
+    });
+    fireEvent.click(screen.getByText("Confirm ex-employee"));
+
+    await waitFor(() =>
+      expect(lifecycleMutationSpy).toHaveBeenCalledWith({
+        orgPublicId: "org_123",
+        personPublicId: "person_123",
+        lastWorkingDay: "2026-10-18",
+      }),
+    );
+  });
+
+  it("rejects a future Last Working Day before calling the backend", () => {
+    render(<PersonDetail />);
+    fireEvent.click(screen.getByText("Mark as ex-employee"));
+    fireEvent.change(screen.getByLabelText("Last working day"), {
+      target: { value: "2999-01-01" },
+    });
+
+    expect(screen.getByRole("alert")).toHaveTextContent(/cannot be in the future/i);
+    expect(screen.getByText("Confirm ex-employee")).toBeDisabled();
+    expect(lifecycleMutationSpy).not.toHaveBeenCalled();
+  });
+
+  it("renders backend lifecycle validation without losing retained-history guidance", () => {
+    lifecycleMutationState.error = Object.assign(new Error("Last Working Day is invalid"), {
+      status: 422,
+    });
+
+    render(<PersonDetail />);
+    fireEvent.click(screen.getByText("Mark as ex-employee"));
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Last Working Day is invalid");
+    expect(screen.getByText(/preserves all verification history/i)).toBeInTheDocument();
+  });
+
+  it("does not expose an unsupported reactivation action", () => {
+    detailQueryState.data = makePersonDetailRecord({
+      relationship: "Former Employee",
+      employmentStatus: "ex_employee",
+      lastWorkingDay: "2026-08-31",
+    });
+
+    render(<PersonDetail />);
+
+    expect(screen.queryByText(/reactivate/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("Mark as ex-employee")).not.toBeInTheDocument();
   });
 
   it("preserves the restricted passport state from backend detail", () => {

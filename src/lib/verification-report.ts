@@ -8,6 +8,7 @@ import type {
   BackendVerificationTimelineEvent,
 } from "@/lib/api/verification-requests";
 import type { EmployeeRosterMetadata } from "@/lib/organization-roster";
+import type { BackendVerificationReport, VerificationReportCheckStatus } from "@/lib/api/hr-v2";
 
 export type VerificationReportOutcome =
   | "confirmed"
@@ -16,7 +17,8 @@ export type VerificationReportOutcome =
   | "pending"
   | "awaiting_response"
   | "unable"
-  | "rejected";
+  | "rejected"
+  | "not_ordered";
 
 export interface VerificationReportEvidence {
   id: string;
@@ -99,6 +101,18 @@ const OUTCOME_LABELS: Record<VerificationReportOutcome, string> = {
   awaiting_response: "Awaiting response",
   unable: "Unable to verify",
   rejected: "Rejected",
+  not_ordered: "Not ordered",
+};
+
+const STRUCTURED_OUTCOME: Record<VerificationReportCheckStatus, VerificationReportOutcome> = {
+  CONFIRMED: "confirmed",
+  DETAILS_MATCHED: "matched",
+  DISCREPANCY: "discrepancy",
+  PENDING: "pending",
+  AWAITING_RESPONSE: "awaiting_response",
+  UNABLE_TO_VERIFY: "unable",
+  REJECTED: "rejected",
+  NOT_ORDERED: "not_ordered",
 };
 
 function text(value: unknown) {
@@ -310,5 +324,171 @@ export function buildVerificationReportModel({
       ["discrepancy", "pending", "awaiting_response", "unable", "rejected"].includes(check.outcome),
     ),
     roster,
+  };
+}
+
+function displayLabel(value: string) {
+  return humanize(value.replace(/^court_search$/, "court-record search"));
+}
+
+function valuesToFields(
+  declared: Record<string, string | null>,
+  verified: Record<string, string | null>,
+): VerificationReportField[] {
+  const keys = [...new Set([...Object.keys(declared), ...Object.keys(verified)])];
+  return keys.map((key) => ({
+    label: displayLabel(key),
+    declaredValue: declared[key] ? maskSensitiveEvidenceValue(key, declared[key]) : null,
+    verifiedValue: verified[key] ? maskSensitiveEvidenceValue(key, verified[key]) : null,
+  }));
+}
+
+function appendField(
+  fields: VerificationReportField[],
+  label: string,
+  declaredValue: string | number | boolean | null | undefined,
+  verifiedValue?: string | number | boolean | null,
+) {
+  if (declaredValue == null && verifiedValue == null) return;
+  fields.push({
+    label,
+    declaredValue: declaredValue == null ? null : String(declaredValue),
+    verifiedValue: verifiedValue == null ? null : String(verifiedValue),
+  });
+}
+
+function structuredCheckDetails(report: BackendVerificationReport, check: string) {
+  const fields: VerificationReportField[] = [];
+  const evidence: VerificationReportEvidence[] = [];
+  const notes: string[] = [];
+  const recordEvidence = (id: string | null, status: string, recordedAt: string | null) => {
+    if (!id) return;
+    evidence.push({
+      id,
+      label: `Evidence ${id}`,
+      status: displayLabel(status),
+      recordedAt: recordedAt ?? report.header.report_updated_at,
+    });
+  };
+  const recordNote = (value: string | null | undefined) => {
+    if (value?.trim()) notes.push(value.trim());
+  };
+
+  if (check === "identity") {
+    report.identity.forEach((item) => {
+      fields.push(...valuesToFields(item.declared_values, item.verified_values));
+      appendField(fields, "Source", item.source);
+      recordNote(item.remarks);
+      recordEvidence(item.evidence_id, item.status, item.reviewed_at);
+    });
+  }
+  if (check === "employment") {
+    report.employment.forEach((item, index) => {
+      const prefix =
+        report.employment.length > 1 ? `${item.organization || `Employment ${index + 1}`} · ` : "";
+      appendField(fields, `${prefix}Organization`, item.organization);
+      appendField(fields, `${prefix}Employee ID`, item.masked_employee_id);
+      appendField(fields, `${prefix}Title`, item.declared_title, item.confirmed_title);
+      appendField(
+        fields,
+        `${prefix}Start date`,
+        item.declared_start_date,
+        item.confirmed_start_date,
+      );
+      appendField(fields, `${prefix}End date`, item.declared_end_date, item.confirmed_end_date);
+      appendField(fields, `${prefix}Employment type`, item.employment_type);
+      appendField(fields, `${prefix}Confirmed by`, item.confirmed_by);
+      appendField(fields, `${prefix}Source`, item.source);
+      appendField(fields, `${prefix}Reviewer`, item.reviewer);
+      recordNote(item.remarks);
+      recordEvidence(item.evidence_id, item.status, item.received_at);
+    });
+  }
+  if (check === "education") {
+    report.education.forEach((item) => {
+      appendField(fields, "Qualification", item.qualification);
+      appendField(fields, "Institution", item.institution);
+      appendField(fields, "University", item.university);
+      appendField(fields, "Completion year", item.completion_year);
+      fields.push(...valuesToFields(item.declared_values, item.confirmed_values));
+      appendField(fields, "Source", item.source);
+      recordEvidence(item.evidence_id, item.status, item.confirmation_date);
+    });
+  }
+  if (check === "references") {
+    report.references.forEach((item, index) => {
+      const prefix = report.references.length > 1 ? `Reference ${index + 1} · ` : "";
+      appendField(fields, `${prefix}Name`, item.name);
+      appendField(fields, `${prefix}Title / relationship`, item.title_or_relationship);
+      appendField(fields, `${prefix}Organization`, item.organization);
+      appendField(fields, `${prefix}Known for`, item.known_for);
+      appendField(fields, `${prefix}Request date`, item.request_date);
+      appendField(fields, `${prefix}Follow-ups`, item.follow_up_dates.join(", ") || null);
+      appendField(fields, `${prefix}Response date`, item.response_date);
+      appendField(fields, `${prefix}Strengths`, item.strengths);
+      appendField(fields, `${prefix}Development areas`, item.development_areas);
+      appendField(fields, `${prefix}Rehire response`, item.rehire_response);
+      recordNote(item.comments);
+      recordEvidence(item.evidence_id, item.status, item.response_date ?? item.request_date);
+    });
+  }
+  if (check === "address") {
+    report.address.forEach((item) => {
+      appendField(fields, "Declared address", item.declared_address);
+      appendField(fields, "Verification method", item.verification_method);
+      appendField(fields, "Scope", item.scope);
+      appendField(fields, "Physical visit performed", item.physical_visit_performed ? "Yes" : "No");
+      recordEvidence(item.evidence_id, item.status, item.verified_at);
+    });
+  }
+  if (check === "court_search") {
+    report.court_search.forEach((item) => {
+      appendField(fields, "Subject", item.safe_subject_display);
+      appendField(fields, "Scope", item.scope);
+      appendField(fields, "Search period", item.search_period);
+      appendField(fields, "Finding", item.finding);
+      appendField(fields, "Reviewer", item.reviewer);
+      recordNote(item.limitations);
+      recordEvidence(item.evidence_id, item.status, item.searched_at);
+    });
+  }
+
+  return { fields, evidence, notes };
+}
+
+export function mapStructuredVerificationReport(
+  report: BackendVerificationReport,
+): VerificationReportModel {
+  const checks = report.check_summaries.map((summary, index) => {
+    const outcome = STRUCTURED_OUTCOME[summary.status];
+    const details = structuredCheckDetails(report, summary.check);
+    return {
+      id: `${summary.check}-${index}`,
+      type: summary.check,
+      title: displayLabel(summary.check),
+      outcome,
+      outcomeLabel: OUTCOME_LABELS[outcome],
+      requestedAt: report.header.initiated_at ?? report.header.report_updated_at,
+      updatedAt: summary.updated_at ?? report.header.report_updated_at,
+      ...details,
+    } satisfies VerificationReportCheck;
+  });
+
+  return {
+    personPublicId: report.header.person_id,
+    candidateName: report.header.person_name,
+    candidateRole: report.header.role,
+    maskedEmail: report.header.masked_email,
+    maskedPhone: report.header.masked_phone,
+    organizationName: report.header.requested_by_organization,
+    initiatedAt: report.header.initiated_at,
+    consentedAt: report.header.consent_at,
+    updatedAt: report.header.report_updated_at,
+    state: report.header.report_status === "FINAL" ? "Final" : "Interim",
+    trustScore: report.header.trust_score,
+    checks,
+    openItems: report.open_items.map((item) => item.display_text),
+    requiresHrReview: report.hr_review_required,
+    roster: null,
   };
 }

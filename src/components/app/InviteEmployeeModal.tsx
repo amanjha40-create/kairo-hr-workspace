@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -36,6 +36,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useCreateTrustInvitationMutation } from "@/lib/queries/trust-invitations";
 import {
+  useOrganizationJobRolesQuery,
+  useOrganizationVerificationPreferencesQuery,
+} from "@/lib/queries/hr-v2";
+import {
   getTrustInvitationErrorMessage,
   VERIFICATION_TYPES,
   type VerificationTypeKey,
@@ -43,33 +47,53 @@ import {
 
 type Step = 1 | 2 | 3 | 4 | 5 | 6;
 
-const CANDIDATE_ROLES = [
-  "Software Engineer",
-  "Contractor",
-  "Intern",
-  "Executive",
-  "Product Designer",
-  "Sales Lead",
-] as const;
-
 export function InviteEmployeeModal() {
   const { inviteOpen, setInviteOpen } = useDashboard();
   const { org, can } = useAccess();
   const canInvite = can("invite_candidate");
   const createInvitationMutation = useCreateTrustInvitationMutation(org?.publicId);
+  const rolesQuery = useOrganizationJobRolesQuery(org?.publicId);
+  const preferencesQuery = useOrganizationVerificationPreferencesQuery(org?.publicId);
   const [step, setStep] = useState<Step>(1);
   const [sentInvitationId, setSentInvitationId] = useState<string | null>(null);
   const [sentInvitationUrl, setSentInvitationUrl] = useState<string | null>(null);
   const [messageEdited, setMessageEdited] = useState(false);
+  const [verificationEdited, setVerificationEdited] = useState(false);
+  const defaultsApplied = useRef(false);
   const [form, setForm] = useState({
     candidateName: "",
     candidateEmail: "",
     candidatePhone: "",
-    purpose: CANDIDATE_ROLES[0] as string,
-    requestedVerifications: ["identity", "employment"] as VerificationTypeKey[],
+    roleId: "",
+    purpose: "",
+    requestedVerifications: [] as VerificationTypeKey[],
     message: "",
     expiresInDays: 7,
   });
+
+  const activeRoles = useMemo(
+    () => (rolesQuery.data ?? []).filter((role) => role.is_active),
+    [rolesQuery.data],
+  );
+
+  useEffect(() => {
+    if (!inviteOpen || form.roleId || activeRoles.length === 0) return;
+    const role = activeRoles[0];
+    setForm((current) => ({ ...current, roleId: role.public_id, purpose: role.name }));
+  }, [activeRoles, form.roleId, inviteOpen]);
+
+  useEffect(() => {
+    if (!inviteOpen || verificationEdited || defaultsApplied.current || !preferencesQuery.data)
+      return;
+    const checks = preferencesQuery.data.checks;
+    const defaults: VerificationTypeKey[] = [];
+    if (checks.identity) defaults.push("identity");
+    if (checks.employment) defaults.push("employment");
+    if (checks.education) defaults.push("education");
+    if (checks.references) defaults.push("professional_reference");
+    defaultsApplied.current = true;
+    setForm((current) => ({ ...current, requestedVerifications: defaults }));
+  }, [inviteOpen, preferencesQuery.data, verificationEdited]);
 
   function reset() {
     setStep(1);
@@ -77,12 +101,15 @@ export function InviteEmployeeModal() {
     setSentInvitationUrl(null);
     createInvitationMutation.reset();
     setMessageEdited(false);
+    setVerificationEdited(false);
+    defaultsApplied.current = false;
     setForm({
       candidateName: "",
       candidateEmail: "",
       candidatePhone: "",
-      purpose: CANDIDATE_ROLES[0] as string,
-      requestedVerifications: ["identity", "employment"],
+      roleId: "",
+      purpose: "",
+      requestedVerifications: [],
       message: "",
       expiresInDays: 7,
     });
@@ -94,10 +121,8 @@ export function InviteEmployeeModal() {
 
   const canNext = (() => {
     if (step === 1)
-      return (
-        form.candidateName.trim() && /.+@.+\..+/.test(form.candidateEmail) && form.purpose.trim()
-      );
-    if (step === 2) return form.requestedVerifications.length > 0;
+      return form.candidateName.trim() && /.+@.+\..+/.test(form.candidateEmail) && form.roleId;
+    if (step === 2) return true;
     return true;
   })();
 
@@ -108,7 +133,8 @@ export function InviteEmployeeModal() {
         subject_email: form.candidateEmail.trim(),
         subject_phone: form.candidatePhone.trim() || undefined,
         purpose: form.purpose.trim() || undefined,
-        requested_verification_types: form.requestedVerifications,
+        role_id: form.roleId,
+        requested_verification_types: verificationEdited ? form.requestedVerifications : [],
         message: form.message.trim() || undefined,
         delivery_method: "email",
         mode: action,
@@ -232,21 +258,37 @@ export function InviteEmployeeModal() {
                   </Field>
                   <Field label="Role" required>
                     <Select
-                      value={form.purpose}
-                      onValueChange={(v) => setForm({ ...form, purpose: v })}
+                      value={form.roleId}
+                      onValueChange={(value) => {
+                        const role = activeRoles.find((item) => item.public_id === value);
+                        setForm({
+                          ...form,
+                          roleId: value,
+                          purpose: role?.name ?? form.purpose,
+                        });
+                      }}
                     >
                       <SelectTrigger>
-                        <SelectValue />
+                        <SelectValue placeholder="Select a role" />
                       </SelectTrigger>
                       <SelectContent>
-                        {CANDIDATE_ROLES.map((p) => (
-                          <SelectItem key={p} value={p}>
-                            {p}
+                        {activeRoles.map((role) => (
+                          <SelectItem key={role.public_id} value={role.public_id}>
+                            {role.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </Field>
+                  {activeRoles.length === 0 && !rolesQuery.isPending ? (
+                    <div className="sm:col-span-2 rounded-xl border border-warning/30 bg-warning/10 p-3 text-xs text-muted-foreground">
+                      Create an active organization job role in the People role area before sending
+                      an invitation.{" "}
+                      <Link to="/app/people" className="font-medium underline">
+                        Manage roles
+                      </Link>
+                    </div>
+                  ) : null}
                   <div className="sm:col-span-2 rounded-xl border border-border/60 bg-foreground/[0.02] p-3 text-xs text-muted-foreground">
                     Department and internal reference remain part of the current UX, but the backend
                     contract does not persist them yet, so they are not collected here.
@@ -270,14 +312,15 @@ export function InviteEmployeeModal() {
                         >
                           <Checkbox
                             checked={on}
-                            onCheckedChange={(c) =>
+                            onCheckedChange={(c) => {
+                              setVerificationEdited(true);
                               setForm({
                                 ...form,
                                 requestedVerifications: c
                                   ? [...form.requestedVerifications, t.key]
                                   : form.requestedVerifications.filter((x) => x !== t.key),
-                              })
-                            }
+                              });
+                            }}
                           />
                           <span className="text-sm">
                             <span className="font-medium">{t.label}</span>
@@ -289,6 +332,12 @@ export function InviteEmployeeModal() {
                       );
                     })}
                   </div>
+                  {!verificationEdited ? (
+                    <p className="text-xs text-muted-foreground">
+                      Organization defaults are shown here. Leaving them unchanged lets the backend
+                      apply and snapshot the current defaults when the invitation is created.
+                    </p>
+                  ) : null}
                 </div>
               )}
               {step === 3 && (

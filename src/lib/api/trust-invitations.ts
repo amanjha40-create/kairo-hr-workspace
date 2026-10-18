@@ -44,6 +44,8 @@ export interface BackendTrustInvitationResponse {
   subject_email: string;
   subject_phone: string | null;
   purpose: string | null;
+  role_id?: string | null;
+  role?: string | null;
   requested_verification_types: BackendTrustInvitationVerificationType[];
   message: string | null;
   status: BackendTrustInvitationStatus;
@@ -59,6 +61,7 @@ export interface BackendTrustInvitationResponse {
   related_verification_request_public_id: string | null;
   created_at: string;
   updated_at: string;
+  verification_preferences_snapshot?: Record<string, unknown>;
 }
 
 export interface BackendTrustInvitationTimelineEvent {
@@ -93,6 +96,7 @@ export interface CreateTrustInvitationPayload {
   subject_email: string;
   subject_phone?: string;
   purpose?: string;
+  role_id?: string;
   requested_verification_types: BackendTrustInvitationVerificationType[];
   message?: string;
   delivery_method: BackendTrustInvitationDeliveryMethod;

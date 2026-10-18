@@ -3,6 +3,7 @@ import { fallback, zodValidator } from "@tanstack/zod-adapter";
 import { z } from "zod";
 import { useMemo } from "react";
 import { EmptyState, PageHeader, SectionCard, TableSkeleton } from "@/components/app/primitives";
+import { OrganizationRolesCard } from "@/components/app/OrganizationRolesCard";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -45,7 +46,6 @@ import {
 } from "@/lib/organization-people";
 import { useOrganizationPeopleDirectoryQuery } from "@/lib/queries/organization-people";
 import { useRosterEmployeesQuery } from "@/lib/queries/organization-roster-imports";
-import { getEmployeeRosterMetadata, getRosterRoleCounts } from "@/lib/organization-roster";
 import {
   AlertTriangle,
   Bell,
@@ -59,7 +59,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 
 const RELATIONSHIPS: readonly (Relationship | "all")[] = [
   "all",
@@ -153,13 +153,6 @@ function PeoplePage() {
   const rosterPersonIds = new Set(
     (rosterEmployeesQuery.data?.items ?? []).map((employee) => employee.organization_person_id),
   );
-  const rosterByPersonId = new Map(
-    (rosterEmployeesQuery.data?.items ?? []).map((employee) => [
-      employee.organization_person_id,
-      getEmployeeRosterMetadata(employee),
-    ]),
-  );
-  const roleCounts = getRosterRoleCounts(rosterEmployeesQuery.data?.items ?? []);
   const addedByOptions = useMemo(
     () =>
       Array.from(
@@ -274,24 +267,7 @@ function PeoplePage() {
         />
       ) : null}
 
-      {canManageRoster && roleCounts.length > 0 ? (
-        <SectionCard
-          title="People by role"
-          description="Derived from organization-provided employee roster data"
-        >
-          <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
-            {roleCounts.map(({ role, count }) => (
-              <div
-                key={role}
-                className="rounded-xl border border-border/60 bg-foreground/[0.02] p-4"
-              >
-                <div className="truncate text-sm font-medium">{role}</div>
-                <div className="mt-2 text-2xl font-semibold tabular-nums">{count}</div>
-              </div>
-            ))}
-          </div>
-        </SectionCard>
-      ) : null}
+      <OrganizationRolesCard orgPublicId={org.publicId} canManage={canManageRoster} />
 
       <div className="grid gap-3 mb-4">
         <div className="relative">
@@ -435,13 +411,18 @@ function PeoplePage() {
                         </Link>
                       </td>
                       <td className="py-3 px-3 text-xs text-muted-foreground">
-                        {rosterByPersonId.get(person.publicId)?.role ?? "—"}
+                        {person.role ?? "—"}
                       </td>
                       <td className="py-3 px-3 text-xs text-muted-foreground">
-                        {rosterByPersonId.get(person.publicId)?.department ?? "—"}
+                        {person.department ?? "—"}
                       </td>
                       <td className="py-3 px-3">
                         <RelationshipPill value={person.relationship} />
+                        {person.employmentStatus === "ex_employee" && person.lastWorkingDay ? (
+                          <div className="mt-1 text-[10px] text-muted-foreground">
+                            LWD {format(new Date(person.lastWorkingDay), "MMM d, yyyy")}
+                          </div>
+                        ) : null}
                       </td>
                       <td className="py-3 px-3">
                         <VerificationPill value={person.verificationStatus} />
@@ -492,10 +473,13 @@ function PeoplePage() {
                     <PassportPill value={person.passportStatus} />
                   </div>
                   <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] text-muted-foreground">
-                    <span>Role: {rosterByPersonId.get(person.publicId)?.role ?? "—"}</span>
-                    <span>
-                      Department: {rosterByPersonId.get(person.publicId)?.department ?? "—"}
-                    </span>
+                    <span>Role: {person.role ?? "—"}</span>
+                    <span>Department: {person.department ?? "—"}</span>
+                    {person.employmentStatus === "ex_employee" && person.lastWorkingDay ? (
+                      <span className="col-span-2">
+                        Last working day: {format(new Date(person.lastWorkingDay), "MMM d, yyyy")}
+                      </span>
+                    ) : null}
                   </div>
                   <div className="mt-2 text-[11px] text-muted-foreground">
                     Last activity{" "}

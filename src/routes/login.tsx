@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { isGoogleSsoEnabled } from "@/lib/app-config";
+import { authHref, captureAuthReturnPath, consumeAuthReturnPath } from "@/lib/auth-return";
 
 export const Route = createFileRoute("/login")({
   head: () => ({
@@ -21,17 +22,17 @@ export const Route = createFileRoute("/login")({
 });
 
 function LoginPage() {
-  const navigate = useNavigate();
   const { session, signIn, signInWithGoogle, completeGoogleSignIn } = useAuth();
   const googleSsoEnabled = isGoogleSsoEnabled();
   const [loading, setLoading] = useState(false);
   const [oauthLoading, setOauthLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [returnTo] = useState(captureAuthReturnPath);
 
   useEffect(() => {
-    if (session) navigate({ to: "/app" });
-  }, [session, navigate]);
+    if (session) window.location.replace(consumeAuthReturnPath() ?? returnTo ?? "/app");
+  }, [session, returnTo]);
 
   useEffect(() => {
     if (!googleSsoEnabled) return;
@@ -43,7 +44,7 @@ function LoginPage() {
     setOauthLoading(true);
     void completeGoogleSignIn(code)
       .then(() => {
-        navigate({ to: "/app", replace: true });
+        window.location.replace(consumeAuthReturnPath() ?? returnTo ?? "/app");
       })
       .catch((error) => {
         const message =
@@ -53,14 +54,14 @@ function LoginPage() {
       .finally(() => {
         setOauthLoading(false);
       });
-  }, [completeGoogleSignIn, googleSsoEnabled, navigate, session]);
+  }, [completeGoogleSignIn, googleSsoEnabled, returnTo, session]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     try {
       await signIn(email, password);
-      navigate({ to: "/app" });
+      window.location.replace(consumeAuthReturnPath() ?? returnTo ?? "/app");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Could not sign you in.";
       toast.error(message);
@@ -89,9 +90,12 @@ function LoginPage() {
       footer={
         <>
           New to KairoID?{" "}
-          <Link to="/signup" className="text-foreground font-medium hover:underline">
+          <a
+            href={returnTo ? authHref("/signup", returnTo) : "/signup"}
+            className="text-foreground font-medium hover:underline"
+          >
             Create an account
-          </Link>
+          </a>
         </>
       }
     >

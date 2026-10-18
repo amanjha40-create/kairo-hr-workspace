@@ -73,6 +73,8 @@ export interface TrustInvitationRecord {
   candidatePhone?: string;
   candidateInitials: string;
   purpose?: string;
+  roleId?: string;
+  role?: string;
   requestedVerifications: VerificationTypeKey[];
   message?: string;
   status: InvitationStatus;
@@ -181,6 +183,8 @@ function mapInvitationBase(
     candidatePhone: invitation.subject_phone ?? undefined,
     candidateInitials: buildInitials(invitation.subject_name),
     purpose: invitation.purpose ?? undefined,
+    roleId: invitation.role_id ?? undefined,
+    role: invitation.role ?? undefined,
     requestedVerifications: invitation.requested_verification_types,
     message: invitation.message ?? undefined,
     status: mapBackendInvitationStatus(invitation.status, invitation.delivery_state),

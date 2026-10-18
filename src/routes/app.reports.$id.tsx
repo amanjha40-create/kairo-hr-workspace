@@ -32,6 +32,7 @@ const OUTCOME_STYLE: Record<VerificationReportOutcome, string> = {
   awaiting_response: "border-slate-200 bg-slate-50 text-slate-700",
   unable: "border-orange-200 bg-orange-50 text-orange-900",
   rejected: "border-red-200 bg-red-50 text-red-800",
+  not_ordered: "border-slate-200 bg-white text-slate-500",
 };
 
 function VerificationReportPage() {
@@ -296,7 +297,7 @@ function CheckSection({ check }: { check: VerificationReportCheck }) {
           {check.notes.join(" · ")}
         </div>
       ) : null}
-      {check.type === "reference" && check.outcome === "awaiting_response" ? (
+      {check.type === "references" && check.outcome === "awaiting_response" ? (
         <p className="mt-3 text-xs text-slate-500">Non-response is not an adverse finding.</p>
       ) : null}
     </section>

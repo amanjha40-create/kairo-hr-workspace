@@ -68,6 +68,8 @@ export interface BackendOrganizationPeopleDirectorySummary {
   by_verification_status: Record<string, number>;
   by_passport_status: Record<string, number>;
   by_trust_state: Record<string, number>;
+  by_role?: Record<string, number>;
+  by_employment_status?: Record<string, number>;
 }
 
 export interface BackendOrganizationPersonListItem {
@@ -86,6 +88,12 @@ export interface BackendOrganizationPersonListItem {
   added_at: string;
   last_activity_at: string | null;
   summary_counts: BackendOrganizationPeopleSummaryCounts;
+  employment_status?: "active" | "ex_employee";
+  role_id?: string | null;
+  role?: string | null;
+  department?: string | null;
+  joining_date?: string | null;
+  last_working_day?: string | null;
 }
 
 export interface BackendOrganizationPeopleListResponse {
@@ -198,6 +206,12 @@ export interface BackendOrganizationPersonDetailResponse {
     resolution_method: string | null;
     resolution_confidence: number | null;
     resolution_metadata: Record<string, unknown>;
+    employment_status?: "active" | "ex_employee";
+    role_id?: string | null;
+    role?: string | null;
+    department?: string | null;
+    joining_date?: string | null;
+    last_working_day?: string | null;
   };
 }
 

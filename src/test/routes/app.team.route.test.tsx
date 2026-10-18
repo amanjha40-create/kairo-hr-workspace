@@ -363,13 +363,14 @@ describe("Team page", () => {
     refetchMembersSpy.mockReset();
     refetchInvitationsSpy.mockReset();
     inviteMutationSpy.mockReset();
-    inviteMutationSpy.mockResolvedValue(undefined);
+    inviteMutationSpy.mockResolvedValue({ last_sent_at: "2026-10-18T10:00:00Z" });
     updateRoleSpy.mockReset();
     suspendSpy.mockReset();
     restoreSpy.mockReset();
     removeSpy.mockReset();
     transferSpy.mockReset();
     resendSpy.mockReset();
+    resendSpy.mockResolvedValue({ last_sent_at: "2026-10-18T11:00:00Z" });
     cancelSpy.mockReset();
     toastSuccessSpy.mockReset();
     toastErrorSpy.mockReset();
@@ -428,10 +429,18 @@ describe("Team page", () => {
         role: "member",
       });
     });
-    expect(toastSuccessSpy).toHaveBeenCalledWith("Team invitation created");
-    expect(
-      screen.getByText(/current backend stores the invitation but does not dispatch/i),
-    ).toBeInTheDocument();
+    expect(toastSuccessSpy).toHaveBeenCalledWith("Team invitation sent");
+    expect(screen.getByText(/pending acceptance/i)).toBeInTheDocument();
+  });
+
+  it("resends an actionable invitation through the certified mutation", async () => {
+    render(<TeamPage />);
+    fireEvent.click(screen.getAllByText("Resend invitation")[0]);
+
+    await waitFor(() => expect(resendSpy).toHaveBeenCalledWith("invite_1"));
+    expect(toastSuccessSpy).toHaveBeenCalledWith(
+      "Invitation validity refreshed for devika@acme.co",
+    );
   });
 
   it("shows permission denied when team access is unavailable", () => {

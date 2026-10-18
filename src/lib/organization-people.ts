@@ -71,6 +71,12 @@ export interface PeopleDirectoryItem {
     sharedEvidenceItems: number;
     internalNotes: number;
   };
+  employmentStatus: "active" | "ex_employee";
+  roleId: string | null;
+  role: string | null;
+  department: string | null;
+  joiningDate: string | null;
+  lastWorkingDay: string | null;
 }
 
 export interface PeopleDirectorySummary {
@@ -80,6 +86,8 @@ export interface PeopleDirectorySummary {
   byVerificationStatus: Record<string, number>;
   byPassportStatus: Record<string, number>;
   byTrustState: Record<string, number>;
+  byRole: Record<string, number>;
+  byEmploymentStatus: Record<string, number>;
 }
 
 export interface PeopleDirectoryResponse {
@@ -190,6 +198,12 @@ export interface PersonDetailRecord {
   sharedEvidence: PersonSharedEvidence[];
   activity: PersonActivityItem[];
   internalNotes: PersonInternalNote[];
+  employmentStatus: "active" | "ex_employee";
+  roleId: string | null;
+  role: string | null;
+  department: string | null;
+  joiningDate: string | null;
+  lastWorkingDay: string | null;
 }
 
 function titleCaseWords(value: string) {
@@ -382,6 +396,8 @@ export function mapDirectorySummary(
     byVerificationStatus: summary.by_verification_status,
     byPassportStatus: summary.by_passport_status,
     byTrustState: summary.by_trust_state,
+    byRole: summary.by_role ?? {},
+    byEmploymentStatus: summary.by_employment_status ?? {},
   };
 }
 
@@ -411,6 +427,12 @@ export function mapOrganizationPeopleDirectory(
         sharedEvidenceItems: item.summary_counts.shared_evidence_items,
         internalNotes: item.summary_counts.internal_notes,
       },
+      employmentStatus: item.employment_status ?? "active",
+      roleId: item.role_id ?? null,
+      role: item.role ?? null,
+      department: item.department ?? null,
+      joiningDate: item.joining_date ?? null,
+      lastWorkingDay: item.last_working_day ?? null,
     })),
     total: response.total,
     page: response.page,
@@ -467,6 +489,12 @@ export function mapOrganizationPersonDetail(
     sharedEvidence: response.shared_evidence.map(mapSharedEvidence),
     activity: response.activity.map(mapActivity),
     internalNotes: response.internal_notes.map(mapOrganizationPersonNote),
+    employmentStatus: response.organization_relationship.employment_status ?? "active",
+    roleId: response.organization_relationship.role_id ?? null,
+    role: response.organization_relationship.role ?? null,
+    department: response.organization_relationship.department ?? null,
+    joiningDate: response.organization_relationship.joining_date ?? null,
+    lastWorkingDay: response.organization_relationship.last_working_day ?? null,
   };
 }
 

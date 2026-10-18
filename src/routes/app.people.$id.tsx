@@ -4,6 +4,23 @@ import { EmptyState, PageHeader, SectionCard, TableSkeleton } from "@/components
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAccess } from "@/lib/access-context";
 import {
@@ -30,6 +47,11 @@ import {
 } from "@/lib/queries/organization-people";
 import { useRosterEmployeesQuery } from "@/lib/queries/organization-roster-imports";
 import { getEmployeeRosterMetadata } from "@/lib/organization-roster";
+import {
+  useEmployeeLifecycleMutation,
+  useEmploymentProfileMutation,
+  useOrganizationJobRolesQuery,
+} from "@/lib/queries/hr-v2";
 import {
   ArrowLeft,
   ArrowRight,
@@ -58,6 +80,7 @@ import {
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
+import { getLastWorkingDayError } from "@/lib/employee-lifecycle";
 
 export const Route = createFileRoute("/app/people/$id")({
   component: PersonDetail,
@@ -101,7 +124,16 @@ function PersonDetail() {
   const addNoteMutation = useAddOrganizationPersonNoteMutation();
   const updateNoteMutation = useUpdateOrganizationPersonNoteMutation();
   const deleteNoteMutation = useDeleteOrganizationPersonNoteMutation();
+  const lifecycleMutation = useEmployeeLifecycleMutation();
+  const profileMutation = useEmploymentProfileMutation();
+  const rolesQuery = useOrganizationJobRolesQuery(org?.publicId);
   const [activeTab, setActiveTab] = useState("summary");
+  const [lifecycleOpen, setLifecycleOpen] = useState(false);
+  const [lastWorkingDay, setLastWorkingDay] = useState("");
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [roleId, setRoleId] = useState("unassigned");
+  const [department, setDepartment] = useState("");
+  const [joiningDate, setJoiningDate] = useState("");
 
   if (!org) {
     return (
@@ -171,6 +203,10 @@ function PersonDetail() {
     (employee) => employee.organization_person_id === person.publicId,
   );
   const roster = getEmployeeRosterMetadata(rosterEmployee);
+  const lastWorkingDayError = getLastWorkingDayError({
+    value: lastWorkingDay,
+    joiningDate: person.joiningDate ?? roster?.joiningDate,
+  });
   const referenceChecks = person.employmentVerifications.filter((verification) =>
     verification.requestType.toLowerCase().includes("reference"),
   );
@@ -189,11 +225,40 @@ function PersonDetail() {
         title={person.fullName}
         description={person.email || "No email shared"}
         actions={
-          <Button size="sm" className="btn-premium rounded-xl" asChild>
-            <Link to="/app/reports/$id" params={{ id: person.publicId }}>
-              <FileText className="h-4 w-4 mr-1.5" /> View Verification Report
-            </Link>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="rounded-xl"
+              onClick={() => {
+                setRoleId(person.roleId ?? "unassigned");
+                setDepartment(person.department ?? "");
+                setJoiningDate(person.joiningDate ?? "");
+                setProfileOpen(true);
+              }}
+            >
+              <Pencil className="h-4 w-4 mr-1.5" /> Edit employment
+            </Button>
+            {person.employmentStatus === "active" ? (
+              <Button
+                size="sm"
+                variant="outline"
+                className="rounded-xl"
+                onClick={() => {
+                  setLastWorkingDay("");
+                  lifecycleMutation.reset();
+                  setLifecycleOpen(true);
+                }}
+              >
+                Mark as ex-employee
+              </Button>
+            ) : null}
+            <Button size="sm" className="btn-premium rounded-xl" asChild>
+              <Link to="/app/reports/$id" params={{ id: person.publicId }}>
+                <FileText className="h-4 w-4 mr-1.5" /> View Verification Report
+              </Link>
+            </Button>
+          </div>
         }
       />
 
@@ -249,24 +314,24 @@ function PersonDetail() {
                 <Field
                   icon={BriefcaseBusiness}
                   label="Role"
-                  value={roster?.role ?? "Not provided"}
+                  value={person.role ?? roster?.role ?? "Not provided"}
                 />
                 <Field
                   icon={Building2}
                   label="Department"
-                  value={roster?.department ?? "Not provided"}
+                  value={person.department ?? roster?.department ?? "Not provided"}
                 />
                 <Field
                   icon={CalendarDays}
                   label="Joining date"
-                  value={formatOptionalDate(roster?.joiningDate)}
+                  value={formatOptionalDate(person.joiningDate ?? roster?.joiningDate)}
                 />
                 <Field
                   icon={CalendarDays}
                   label="Last working day"
                   value={
-                    person.relationship === "Former Employee"
-                      ? formatOptionalDate(roster?.lastWorkingDay)
+                    person.employmentStatus === "ex_employee"
+                      ? formatOptionalDate(person.lastWorkingDay ?? roster?.lastWorkingDay)
                       : "Not applicable"
                   }
                 />
@@ -503,6 +568,158 @@ function PersonDetail() {
           />
         </TabsContent>
       </Tabs>
+
+      <Dialog open={lifecycleOpen} onOpenChange={setLifecycleOpen}>
+        <DialogContent className="rounded-2xl sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Mark as ex-employee</DialogTitle>
+            <DialogDescription>
+              This preserves all verification history, evidence, references, notes, reports, and
+              Candidate access. Reactivation is not supported in HR V2 V1.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            <Label htmlFor="last-working-day">Last working day</Label>
+            <Input
+              id="last-working-day"
+              type="date"
+              max={new Date().toISOString().slice(0, 10)}
+              value={lastWorkingDay}
+              onChange={(event) => setLastWorkingDay(event.target.value)}
+              className="mt-1.5 rounded-xl"
+              required
+            />
+            {lastWorkingDay && lastWorkingDayError ? (
+              <p className="mt-2 text-sm text-destructive" role="alert">
+                {lastWorkingDayError}
+              </p>
+            ) : null}
+            {lifecycleMutation.error ? (
+              <p className="mt-2 text-sm text-destructive" role="alert">
+                {getOrganizationPeopleErrorMessage(
+                  lifecycleMutation.error,
+                  "We couldn't update this employee.",
+                )}
+              </p>
+            ) : null}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              className="rounded-xl"
+              onClick={() => setLifecycleOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="rounded-xl"
+              disabled={Boolean(lastWorkingDayError) || lifecycleMutation.isPending}
+              onClick={async () => {
+                try {
+                  await lifecycleMutation.mutateAsync({
+                    orgPublicId: org.publicId,
+                    personPublicId: person.publicId,
+                    lastWorkingDay,
+                  });
+                  setLifecycleOpen(false);
+                  toast.success("Employee lifecycle updated");
+                } catch {
+                  // The mutation error is rendered in the dialog.
+                }
+              }}
+            >
+              Confirm ex-employee
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={profileOpen} onOpenChange={setProfileOpen}>
+        <DialogContent className="rounded-2xl sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit employment profile</DialogTitle>
+            <DialogDescription>
+              Assign a canonical organization job role and employment metadata.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label>Role</Label>
+              <Select value={roleId} onValueChange={setRoleId}>
+                <SelectTrigger className="mt-1.5 rounded-xl" aria-label="Role">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unassigned">Unassigned</SelectItem>
+                  {(rolesQuery.data ?? [])
+                    .filter((role) => role.is_active || role.public_id === person.roleId)
+                    .map((role) => (
+                      <SelectItem key={role.public_id} value={role.public_id}>
+                        {role.name}
+                        {role.is_active ? "" : " (inactive)"}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="employment-department">Department</Label>
+              <Input
+                id="employment-department"
+                value={department}
+                onChange={(event) => setDepartment(event.target.value)}
+                className="mt-1.5 rounded-xl"
+              />
+            </div>
+            <div>
+              <Label htmlFor="employment-joining-date">Joining date</Label>
+              <Input
+                id="employment-joining-date"
+                type="date"
+                value={joiningDate}
+                onChange={(event) => setJoiningDate(event.target.value)}
+                className="mt-1.5 rounded-xl"
+              />
+            </div>
+            {profileMutation.error ? (
+              <p className="text-sm text-destructive" role="alert">
+                {getOrganizationPeopleErrorMessage(
+                  profileMutation.error,
+                  "We couldn't update the employment profile.",
+                )}
+              </p>
+            ) : null}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" className="rounded-xl" onClick={() => setProfileOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              className="btn-premium rounded-xl"
+              disabled={profileMutation.isPending}
+              onClick={async () => {
+                try {
+                  await profileMutation.mutateAsync({
+                    orgPublicId: org.publicId,
+                    personPublicId: person.publicId,
+                    payload: {
+                      role_id: roleId === "unassigned" ? null : roleId,
+                      department: department.trim() || null,
+                      joining_date: joiningDate || null,
+                    },
+                  });
+                  setProfileOpen(false);
+                  toast.success("Employment profile updated");
+                } catch {
+                  // The mutation error is rendered in the dialog.
+                }
+              }}
+            >
+              Save profile
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

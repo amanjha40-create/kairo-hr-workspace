@@ -130,6 +130,14 @@ vi.mock("@/components/app/access/PermissionDenied", () => ({
   PermissionDenied: ({ message }: { message: string }) => <div>{message}</div>,
 }));
 
+vi.mock("@/components/app/OrganizationLogoSettings", () => ({
+  OrganizationLogoSettings: () => <div>organization-logo-settings</div>,
+}));
+
+vi.mock("@/components/app/VerificationPreferencesSettings", () => ({
+  VerificationPreferencesSettings: () => <div>canonical-verification-preferences</div>,
+}));
+
 vi.mock("@/components/ui/button", () => ({
   Button: ({
     children,
@@ -316,13 +324,15 @@ describe("Settings route", () => {
     expect(toastSuccessSpy).toHaveBeenCalledWith("Settings saved");
   });
 
-  it("shows verification defaults as intentionally unavailable", () => {
+  it("shows canonical verification preferences", () => {
     render(<SettingsPage />);
 
     fireEvent.click(screen.getAllByText("Verification preferences")[0]!);
 
-    expect(screen.getByText("Coming soon")).toBeInTheDocument();
-    expect(screen.getByText(/not yet backed by the current backend contract/i)).toBeInTheDocument();
+    expect(screen.getByText("canonical-verification-preferences")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/not yet backed by the current backend contract/i),
+    ).not.toBeInTheDocument();
   });
 
   it("renders backend sessions and supports revoking a single session", async () => {

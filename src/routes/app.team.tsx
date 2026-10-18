@@ -152,6 +152,8 @@ function TeamPage() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteStep, setInviteStep] = useState<"form" | "success">("form");
   const [inviteForm, setInviteForm] = useState<InviteFormValue>(DEFAULT_INVITE_FORM);
+  const [createdInvitation, setCreatedInvitation] =
+    useState<BackendOrganizationInvitationResponse | null>(null);
   const [roleDialog, setRoleDialog] = useState<RoleDialogState>({
     open: false,
     nextRole: "Member",
@@ -277,6 +279,7 @@ function TeamPage() {
 
   const openInvite = () => {
     setInviteForm(DEFAULT_INVITE_FORM);
+    setCreatedInvitation(null);
     setInviteStep("form");
     setInviteOpen(true);
   };
@@ -288,12 +291,13 @@ function TeamPage() {
     }
 
     try {
-      await inviteMutation.mutateAsync({
+      const created = await inviteMutation.mutateAsync({
         invitee_email: inviteForm.email.trim(),
         role: mapTeamRoleToBackend(inviteForm.role),
       });
+      setCreatedInvitation(created);
       setInviteStep("success");
-      toast.success("Team invitation created");
+      toast.success(created.last_sent_at ? "Team invitation sent" : "Team invitation queued");
     } catch (error) {
       toast.error(getTeamErrorMessage(error, "We couldn't send that team invitation."));
     }
@@ -364,8 +368,12 @@ function TeamPage() {
   const handleResendInvitation = async (record: TeamRecord) => {
     if (!record.invitationPublicId) return;
 
-    if (record.status !== "Invitation Pending") {
-      toast.error("Only pending invitations can be resent with the current backend contract.");
+    if (
+      record.status !== "Invitation Pending" &&
+      record.status !== "Invitation Sent" &&
+      record.status !== "Invitation Delivery Failed"
+    ) {
+      toast.error("Only actionable invitations can be resent.");
       return;
     }
 
@@ -667,8 +675,7 @@ function TeamPage() {
               <DialogHeader>
                 <DialogTitle>Invite team member</DialogTitle>
                 <DialogDescription>
-                  Create workspace access for an email address. Email delivery is not provided by
-                  the current team-invitation backend contract.
+                  Send a secure, seven-day, single-use invitation to an email address.
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 pt-2">
@@ -761,10 +768,13 @@ function TeamPage() {
                 <div className="mx-auto h-12 w-12 rounded-full bg-success/15 flex items-center justify-center mb-2">
                   <CheckCircle2 className="h-6 w-6 text-success" />
                 </div>
-                <DialogTitle className="text-center">Invitation created</DialogTitle>
+                <DialogTitle className="text-center">
+                  {createdInvitation?.last_sent_at ? "Invitation sent" : "Invitation queued"}
+                </DialogTitle>
                 <DialogDescription className="text-center">
-                  Access for {inviteForm.email} is pending. The current backend stores the
-                  invitation but does not dispatch a team-invitation email.
+                  {createdInvitation?.delivery_failed_at
+                    ? `Delivery to ${inviteForm.email} failed. Review the invitation state before resending.`
+                    : `A secure invitation for ${inviteForm.email} is pending acceptance.`}
                 </DialogDescription>
               </DialogHeader>
               <DialogFooter className="pt-4 sm:justify-center gap-2">
@@ -779,6 +789,7 @@ function TeamPage() {
                   className="btn-premium rounded-xl"
                   onClick={() => {
                     setInviteForm(DEFAULT_INVITE_FORM);
+                    setCreatedInvitation(null);
                     setInviteStep("form");
                   }}
                 >
@@ -989,7 +1000,10 @@ function TeamRecordMenu({
   onTransfer: () => void;
 }) {
   const isInvitation = record.kind === "invitation";
-  const isPendingInvitation = record.status === "Invitation Pending";
+  const isActionableInvitation =
+    record.status === "Invitation Pending" ||
+    record.status === "Invitation Sent" ||
+    record.status === "Invitation Delivery Failed";
   const isExpiredInvitation = record.status === "Invitation Expired";
   const isHistoricalInvitation =
     record.status === "Invitation Cancelled" ||
@@ -1068,14 +1082,14 @@ function TeamRecordMenu({
               Invitation actions
             </DropdownMenuLabel>
             <DropdownMenuItem
-              disabled={pending || !isPendingInvitation}
+              disabled={pending || !isActionableInvitation}
               onClick={onResendInvitation}
             >
               <Mail className="h-3.5 w-3.5 mr-2" /> Resend invitation
             </DropdownMenuItem>
             <DropdownMenuItem
               className="text-destructive focus:text-destructive"
-              disabled={pending || !isPendingInvitation}
+              disabled={pending || !isActionableInvitation}
               onClick={onCancelInvitation}
             >
               <X className="h-3.5 w-3.5 mr-2" /> Cancel invitation

@@ -46,6 +46,10 @@ export interface BackendOrganizationInvitationResponse {
   cancelled_at: string | null;
   created_at: string;
   updated_at: string;
+  token_expires_at?: string | null;
+  token_used_at?: string | null;
+  last_sent_at?: string | null;
+  delivery_failed_at?: string | null;
 }
 
 export interface BackendOrganizationMemberUpdatePayload {

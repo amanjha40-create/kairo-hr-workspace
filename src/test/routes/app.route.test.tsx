@@ -59,6 +59,10 @@ vi.mock("@/lib/dashboard-context", () => ({
   useDashboard: () => dashboardState,
 }));
 
+vi.mock("@/lib/queries/hr-v2", () => ({
+  useOrganizationLogoQuery: () => ({ data: { has_logo: false }, isPending: false }),
+}));
+
 vi.mock("@/components/Logo", () => ({
   Logo: () => <div>logo</div>,
 }));

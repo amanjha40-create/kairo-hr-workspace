@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,7 @@ import {
   readOrganizationSignupDraft,
   writeOrganizationSignupDraft,
 } from "@/lib/organization-signup-draft";
+import { authHref, captureAuthReturnPath, consumeAuthReturnPath } from "@/lib/auth-return";
 
 export const Route = createFileRoute("/signup")({
   head: () => ({
@@ -67,6 +68,7 @@ function SignupPage() {
     hiring_volume: persistedDraft?.hiringVolume ?? "",
     password: "",
   });
+  const [returnTo] = useState(captureAuthReturnPath);
 
   useEffect(() => {
     if (!resendAfterSeconds) return;
@@ -78,9 +80,9 @@ function SignupPage() {
 
   useEffect(() => {
     if (session) {
-      navigate({ to: "/app", replace: true });
+      window.location.replace(consumeAuthReturnPath() ?? returnTo ?? "/app");
     }
-  }, [navigate, session]);
+  }, [returnTo, session]);
 
   useEffect(() => {
     if (!googleSsoEnabled) return;
@@ -92,7 +94,7 @@ function SignupPage() {
     setOauthLoading(true);
     void completeGoogleSignIn(code)
       .then(() => {
-        navigate({ to: "/app", replace: true });
+        window.location.replace(consumeAuthReturnPath() ?? returnTo ?? "/app");
       })
       .catch((error) => {
         const message =
@@ -102,7 +104,7 @@ function SignupPage() {
       .finally(() => {
         setOauthLoading(false);
       });
-  }, [completeGoogleSignIn, googleSsoEnabled, navigate, session]);
+  }, [completeGoogleSignIn, googleSsoEnabled, returnTo, session]);
 
   const onChange = (k: keyof typeof form) => (v: string) =>
     setForm((current) => ({ ...current, [k]: v }));
@@ -188,7 +190,9 @@ function SignupPage() {
         stage: "complete_onboarding",
         signupSessionId: undefined,
       });
-      navigate({ to: "/app/setup" });
+      const authReturn = consumeAuthReturnPath() ?? returnTo;
+      if (authReturn) window.location.replace(authReturn);
+      else navigate({ to: "/app/setup" });
     } catch (error) {
       const message = error instanceof Error ? error.message : "We couldn't verify your email.";
       toast.error(message);
@@ -247,9 +251,12 @@ function SignupPage() {
       footer={
         <>
           Already have an account?{" "}
-          <Link to="/login" className="text-foreground font-medium hover:underline">
+          <a
+            href={returnTo ? authHref("/login", returnTo) : "/login"}
+            className="text-foreground font-medium hover:underline"
+          >
             Sign in
-          </Link>
+          </a>
         </>
       }
     >

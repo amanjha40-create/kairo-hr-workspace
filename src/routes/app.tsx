@@ -50,6 +50,7 @@ import { HelpWidget } from "@/components/app/HelpWidget";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import type { PermissionAction } from "@/lib/access-context";
+import { useOrganizationLogoQuery } from "@/lib/queries/hr-v2";
 
 export const Route = createFileRoute("/app")({
   head: () => ({
@@ -229,6 +230,7 @@ function AppLayout() {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const { search, setSearch } = useDashboard();
   const { role, org, can, state: accessState } = useAccess();
+  const logoQuery = useOrganizationLogoQuery(org?.publicId);
   const searchRef = useRef<HTMLInputElement>(null);
   const gPressed = useRef(false);
   const routePermission = getRoutePermission(path);
@@ -299,6 +301,13 @@ function AppLayout() {
           <span className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground font-medium border-l border-border/60 pl-2 ml-1">
             Trust Workspace
           </span>
+          {logoQuery.data?.has_logo && logoQuery.data.display_url ? (
+            <img
+              src={logoQuery.data.display_url}
+              alt={`${org?.name ?? "Organization"} logo`}
+              className="ml-auto h-8 w-8 rounded-lg border border-border/60 object-contain p-1"
+            />
+          ) : null}
         </div>
         <NavList path={path} />
         <div className="shrink-0 p-3 border-t border-border/60 bg-background">
@@ -337,6 +346,13 @@ function AppLayout() {
                 <span className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground font-medium border-l border-border/60 pl-2 ml-1">
                   Trust Workspace
                 </span>
+                {logoQuery.data?.has_logo && logoQuery.data.display_url ? (
+                  <img
+                    src={logoQuery.data.display_url}
+                    alt={`${org?.name ?? "Organization"} logo`}
+                    className="ml-auto h-8 w-8 rounded-lg border border-border/60 object-contain p-1"
+                  />
+                ) : null}
               </div>
               <NavList path={path} />
             </SheetContent>

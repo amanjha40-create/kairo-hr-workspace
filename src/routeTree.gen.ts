@@ -17,6 +17,7 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppIndexRouteImport } from './routes/app.index'
+import { Route as TeamInvitationsAcceptRouteImport } from './routes/team-invitations.accept'
 import { Route as EmployerVerificationTokenRouteImport } from './routes/employer-verification.$token'
 import { Route as AppTeamRouteImport } from './routes/app.team'
 import { Route as AppSetupRouteImport } from './routes/app.setup'
@@ -75,6 +76,11 @@ const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AppRoute,
+} as any)
+const TeamInvitationsAcceptRoute = TeamInvitationsAcceptRouteImport.update({
+  id: '/team-invitations/accept',
+  path: '/team-invitations/accept',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const EmployerVerificationTokenRoute =
   EmployerVerificationTokenRouteImport.update({
@@ -185,6 +191,7 @@ export interface FileRoutesByFullPath {
   '/app/setup': typeof AppSetupRoute
   '/app/team': typeof AppTeamRoute
   '/employer-verification/$token': typeof EmployerVerificationTokenRoute
+  '/team-invitations/accept': typeof TeamInvitationsAcceptRoute
   '/app/': typeof AppIndexRoute
   '/app/invitations/$id': typeof AppInvitationsIdRoute
   '/app/people/$id': typeof AppPeopleIdRoute
@@ -211,6 +218,7 @@ export interface FileRoutesByTo {
   '/app/setup': typeof AppSetupRoute
   '/app/team': typeof AppTeamRoute
   '/employer-verification/$token': typeof EmployerVerificationTokenRoute
+  '/team-invitations/accept': typeof TeamInvitationsAcceptRoute
   '/app': typeof AppIndexRoute
   '/app/invitations/$id': typeof AppInvitationsIdRoute
   '/app/people/$id': typeof AppPeopleIdRoute
@@ -240,6 +248,7 @@ export interface FileRoutesById {
   '/app/setup': typeof AppSetupRoute
   '/app/team': typeof AppTeamRoute
   '/employer-verification/$token': typeof EmployerVerificationTokenRoute
+  '/team-invitations/accept': typeof TeamInvitationsAcceptRoute
   '/app/': typeof AppIndexRoute
   '/app/invitations/$id': typeof AppInvitationsIdRoute
   '/app/people/$id': typeof AppPeopleIdRoute
@@ -270,6 +279,7 @@ export interface FileRouteTypes {
     | '/app/setup'
     | '/app/team'
     | '/employer-verification/$token'
+    | '/team-invitations/accept'
     | '/app/'
     | '/app/invitations/$id'
     | '/app/people/$id'
@@ -296,6 +306,7 @@ export interface FileRouteTypes {
     | '/app/setup'
     | '/app/team'
     | '/employer-verification/$token'
+    | '/team-invitations/accept'
     | '/app'
     | '/app/invitations/$id'
     | '/app/people/$id'
@@ -324,6 +335,7 @@ export interface FileRouteTypes {
     | '/app/setup'
     | '/app/team'
     | '/employer-verification/$token'
+    | '/team-invitations/accept'
     | '/app/'
     | '/app/invitations/$id'
     | '/app/people/$id'
@@ -345,6 +357,7 @@ export interface RootRouteChildren {
   OnboardingRoute: typeof OnboardingRoute
   SignupRoute: typeof SignupRoute
   EmployerVerificationTokenRoute: typeof EmployerVerificationTokenRoute
+  TeamInvitationsAcceptRoute: typeof TeamInvitationsAcceptRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -404,6 +417,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/app/'
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/team-invitations/accept': {
+      id: '/team-invitations/accept'
+      path: '/team-invitations/accept'
+      fullPath: '/team-invitations/accept'
+      preLoaderRoute: typeof TeamInvitationsAcceptRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/employer-verification/$token': {
       id: '/employer-verification/$token'
@@ -607,6 +627,7 @@ const rootRouteChildren: RootRouteChildren = {
   OnboardingRoute: OnboardingRoute,
   SignupRoute: SignupRoute,
   EmployerVerificationTokenRoute: EmployerVerificationTokenRoute,
+  TeamInvitationsAcceptRoute: TeamInvitationsAcceptRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

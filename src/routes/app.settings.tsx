@@ -17,6 +17,8 @@ import {
 } from "lucide-react";
 import { EmptyState, PageHeader, SectionCard, TableSkeleton } from "@/components/app/primitives";
 import { PermissionDenied } from "@/components/app/access/PermissionDenied";
+import { OrganizationLogoSettings } from "@/components/app/OrganizationLogoSettings";
+import { VerificationPreferencesSettings } from "@/components/app/VerificationPreferencesSettings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -308,6 +310,7 @@ function SettingsPage() {
         <div className="min-w-0 space-y-6">
           {tab === "org" ? (
             <OrgSection
+              orgPublicId={org?.publicId}
               canSaveSettings={canSaveSettings}
               error={updateOrganizationMutation.error}
               onChange={updateOrgField}
@@ -315,7 +318,12 @@ function SettingsPage() {
             />
           ) : null}
 
-          {tab === "prefs" ? <VerificationPreferencesUnavailable /> : null}
+          {tab === "prefs" && org ? (
+            <VerificationPreferencesSettings
+              orgPublicId={org.publicId}
+              canManage={canSaveSettings}
+            />
+          ) : null}
 
           {tab === "notif" ? (
             <NotifSection
@@ -462,11 +470,13 @@ function OrgVerificationBadge({
 }
 
 function OrgSection({
+  orgPublicId,
   value,
   onChange,
   canSaveSettings,
   error,
 }: {
+  orgPublicId: string | undefined;
   value: OrganizationSettingsFormValue | null;
   onChange: <K extends keyof OrganizationSettingsFormValue>(
     key: K,
@@ -584,46 +594,9 @@ function OrgSection({
           </Field>
         </div>
 
-        <div>
-          <Label className="text-xs text-muted-foreground mb-1.5 block">Organization logo</Label>
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="h-16 w-16 rounded-xl bg-foreground/[0.06] border border-border/60 flex items-center justify-center text-xs text-muted-foreground">
-              Logo
-            </div>
-            <Button variant="outline" size="sm" className="rounded-lg" disabled>
-              Coming soon
-            </Button>
-            <p className="text-[11px] text-muted-foreground">
-              Logo upload is not yet supported by the current backend contract.
-            </p>
-          </div>
-        </div>
-      </div>
-    </SectionCard>
-  );
-}
-
-function VerificationPreferencesUnavailable() {
-  return (
-    <SectionCard
-      title="Verification preferences"
-      description="Defaults applied to new Trust Invitations and verification workflows."
-    >
-      <div className="p-6">
-        <div className="rounded-2xl border border-border/60 bg-foreground/[0.03] p-5">
-          <div className="flex items-start gap-3">
-            <div className="h-10 w-10 rounded-xl bg-foreground/[0.06] flex items-center justify-center">
-              <ShieldCheck className="h-4 w-4 text-muted-foreground" />
-            </div>
-            <div>
-              <div className="text-sm font-medium">Coming soon</div>
-              <p className="text-sm text-muted-foreground mt-1">
-                Verification default settings are not yet backed by the current backend contract, so
-                this section is intentionally unavailable.
-              </p>
-            </div>
-          </div>
-        </div>
+        {orgPublicId ? (
+          <OrganizationLogoSettings orgPublicId={orgPublicId} canManage={canSaveSettings} />
+        ) : null}
       </div>
     </SectionCard>
   );
