@@ -13,6 +13,17 @@ const lifecycleMutationState = {
   isPending: false,
   error: null as unknown,
 };
+const jobRolesQueryState = {
+  data: [] as Array<{
+    public_id: string;
+    name: string;
+    description: string | null;
+    is_active: boolean;
+    assigned_people_count: number;
+    created_at: string;
+    updated_at: string;
+  }>,
+};
 
 const accessState: {
   org: { publicId: string } | null;
@@ -133,6 +144,38 @@ vi.mock("@/components/ui/textarea", () => ({
   ),
 }));
 
+vi.mock("@/components/ui/select", () => ({
+  Select: ({
+    children,
+    value,
+    onValueChange,
+  }: {
+    children: ReactNode;
+    value: string;
+    onValueChange: (value: string) => void;
+  }) => (
+    <select aria-label="Role" value={value} onChange={(event) => onValueChange(event.target.value)}>
+      {children}
+    </select>
+  ),
+  SelectTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
+  SelectValue: () => null,
+  SelectContent: ({ children }: { children: ReactNode }) => <>{children}</>,
+  SelectItem: ({
+    children,
+    value,
+    disabled,
+  }: {
+    children: ReactNode;
+    value: string;
+    disabled?: boolean;
+  }) => (
+    <option value={value} disabled={disabled}>
+      {children}
+    </option>
+  ),
+}));
+
 vi.mock("@/components/ui/tabs", () => ({
   Tabs: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   TabsList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -181,7 +224,7 @@ vi.mock("@/lib/queries/hr-v2", () => ({
     isPending: false,
     error: null,
   }),
-  useOrganizationJobRolesQuery: () => ({ data: [], isPending: false }),
+  useOrganizationJobRolesQuery: () => ({ ...jobRolesQueryState, isPending: false }),
 }));
 
 const { Route } = await import("../../routes/app.people.$id");
@@ -198,6 +241,26 @@ describe("Person detail page", () => {
     lifecycleMutationSpy.mockResolvedValue({ employment_status: "ex_employee" });
     lifecycleMutationState.isPending = false;
     lifecycleMutationState.error = null;
+    jobRolesQueryState.data = [
+      {
+        public_id: "role_software_engineer",
+        name: "Software Engineer",
+        description: null,
+        is_active: true,
+        assigned_people_count: 1,
+        created_at: "2026-07-01T00:00:00Z",
+        updated_at: "2026-07-01T00:00:00Z",
+      },
+      {
+        public_id: "role_engineering_manager",
+        name: "Engineering Manager",
+        description: null,
+        is_active: true,
+        assigned_people_count: 0,
+        created_at: "2026-07-01T00:00:00Z",
+        updated_at: "2026-07-01T00:00:00Z",
+      },
+    ];
     accessState.org = { publicId: "org_123" };
     accessState.membershipRole = "owner";
     accessState.can = (action: string) => action === "modify_person";
@@ -301,6 +364,100 @@ describe("Person detail page", () => {
 
     expect(screen.queryByText(/reactivate/i)).not.toBeInTheDocument();
     expect(screen.queryByText("Mark as ex-employee")).not.toBeInTheDocument();
+  });
+
+  it("omits an unchanged inactive historical role while patching employment metadata", async () => {
+    detailQueryState.data = makePersonDetailRecord({
+      roleId: "role_historical",
+      role: "Historical Role",
+      department: "Operations",
+      joiningDate: "2025-01-15",
+    });
+    jobRolesQueryState.data = [
+      ...jobRolesQueryState.data,
+      {
+        public_id: "role_historical",
+        name: "Historical Role",
+        description: null,
+        is_active: false,
+        assigned_people_count: 1,
+        created_at: "2025-01-01T00:00:00Z",
+        updated_at: "2026-01-01T00:00:00Z",
+      },
+    ];
+
+    render(<PersonDetail />);
+    fireEvent.click(screen.getByText("Edit employment"));
+    expect(screen.getByRole("option", { name: "Historical Role (inactive)" })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Department"), {
+      target: { value: "People Operations" },
+    });
+    fireEvent.click(screen.getByText("Save profile"));
+
+    await waitFor(() => {
+      expect(profileMutationSpy).toHaveBeenCalledWith({
+        orgPublicId: "org_123",
+        personPublicId: "person_123",
+        payload: {
+          department: "People Operations",
+          joining_date: "2025-01-15",
+        },
+      });
+      expect(profileMutationSpy.mock.calls[0]?.[0].payload).not.toHaveProperty("role_id");
+    });
+  });
+
+  it("sends a newly selected active role", async () => {
+    render(<PersonDetail />);
+    fireEvent.click(screen.getByText("Edit employment"));
+    fireEvent.change(screen.getByRole("combobox", { name: "Role" }), {
+      target: { value: "role_engineering_manager" },
+    });
+    fireEvent.click(screen.getByText("Save profile"));
+
+    await waitFor(() =>
+      expect(profileMutationSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          payload: expect.objectContaining({ role_id: "role_engineering_manager" }),
+        }),
+      ),
+    );
+  });
+
+  it("sends null when the user explicitly clears the role", async () => {
+    render(<PersonDetail />);
+    fireEvent.click(screen.getByText("Edit employment"));
+    fireEvent.change(screen.getByRole("combobox", { name: "Role" }), {
+      target: { value: "unassigned" },
+    });
+    fireEvent.click(screen.getByText("Save profile"));
+
+    await waitFor(() =>
+      expect(profileMutationSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ payload: expect.objectContaining({ role_id: null }) }),
+      ),
+    );
+  });
+
+  it("does not offer an unrelated inactive role for a new assignment", () => {
+    detailQueryState.data = makePersonDetailRecord({ roleId: null, role: null });
+    jobRolesQueryState.data = [
+      ...jobRolesQueryState.data,
+      {
+        public_id: "role_inactive",
+        name: "Inactive Role",
+        description: null,
+        is_active: false,
+        assigned_people_count: 0,
+        created_at: "2025-01-01T00:00:00Z",
+        updated_at: "2026-01-01T00:00:00Z",
+      },
+    ];
+
+    render(<PersonDetail />);
+    fireEvent.click(screen.getByText("Edit employment"));
+
+    expect(screen.queryByRole("option", { name: /Inactive Role/ })).not.toBeInTheDocument();
   });
 
   it("preserves the restricted passport state from backend detail", () => {

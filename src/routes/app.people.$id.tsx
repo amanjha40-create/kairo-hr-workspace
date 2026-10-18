@@ -131,6 +131,7 @@ function PersonDetail() {
   const [lifecycleOpen, setLifecycleOpen] = useState(false);
   const [lastWorkingDay, setLastWorkingDay] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
+  const [originalRoleId, setOriginalRoleId] = useState<string | null>(null);
   const [roleId, setRoleId] = useState("unassigned");
   const [department, setDepartment] = useState("");
   const [joiningDate, setJoiningDate] = useState("");
@@ -231,7 +232,9 @@ function PersonDetail() {
               variant="outline"
               className="rounded-xl"
               onClick={() => {
-                setRoleId(person.roleId ?? "unassigned");
+                const currentRoleId = person.roleId ?? null;
+                setOriginalRoleId(currentRoleId);
+                setRoleId(currentRoleId ?? "unassigned");
                 setDepartment(person.department ?? "");
                 setJoiningDate(person.joiningDate ?? "");
                 setProfileOpen(true);
@@ -654,7 +657,11 @@ function PersonDetail() {
                   {(rolesQuery.data ?? [])
                     .filter((role) => role.is_active || role.public_id === person.roleId)
                     .map((role) => (
-                      <SelectItem key={role.public_id} value={role.public_id}>
+                      <SelectItem
+                        key={role.public_id}
+                        value={role.public_id}
+                        disabled={!role.is_active}
+                      >
                         {role.name}
                         {role.is_active ? "" : " (inactive)"}
                       </SelectItem>
@@ -699,11 +706,12 @@ function PersonDetail() {
               disabled={profileMutation.isPending}
               onClick={async () => {
                 try {
+                  const selectedRoleId = roleId === "unassigned" ? null : roleId;
                   await profileMutation.mutateAsync({
                     orgPublicId: org.publicId,
                     personPublicId: person.publicId,
                     payload: {
-                      role_id: roleId === "unassigned" ? null : roleId,
+                      ...(selectedRoleId !== originalRoleId ? { role_id: selectedRoleId } : {}),
                       department: department.trim() || null,
                       joining_date: joiningDate || null,
                     },
