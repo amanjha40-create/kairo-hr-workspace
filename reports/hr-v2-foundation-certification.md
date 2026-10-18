@@ -3,6 +3,7 @@
 Certification date: 2026-10-18
 Branch: `codex/hr-v2-foundation`
 Starting source: `dfedcb10113d11cee360bfa86762b5205c3fa3b6`
+Implementation source: `83e578c41c88f7254168283951f9959467dcf870`
 Production deployment: not performed
 
 ## Implemented
@@ -55,10 +56,21 @@ V1 uses a print-optimized report generated from the same canonical `Verification
 
 See `reports/hr-v2-contract-audit.md`. The primary blockers are employee status mutation, logo storage, verification defaults, persistent custom roles, Team invitation email delivery, and richer structured report-result fields.
 
+## Validation
+
+- Node 22 full suite: 32 files and 143 tests passed.
+- TypeScript: passed with no errors.
+- ESLint: zero errors; six unchanged Fast Refresh warnings remain from the production baseline.
+- Changed-file ESLint: passed with no warnings or errors.
+- Prettier and `git diff --check`: passed.
+- `NITRO_PRESET=aws_amplify npm run build`: passed and emitted the report client and SSR chunks.
+- Direct requests against the generated Amplify compute server returned HTTP 200 for `/app/reports/person-test` and `/app/people/person-test`.
+- Authenticated browser visual QA remains a pre-promotion check; no production deployment was attempted.
+
 ## Certification Boundary
 
 - Backend source changed: no.
 - Production backend or DB changed: no.
 - HR production deployed: no.
 - Existing production artifact remains unchanged.
-- Browser visual QA and deep-link validation are required before any future staging or production promotion.
+- Authenticated browser visual QA is required before any future staging or production promotion.
