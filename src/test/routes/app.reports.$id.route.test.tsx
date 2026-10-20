@@ -185,4 +185,30 @@ describe("Verification report route", () => {
     rerender(<ReportPage />);
     expect(screen.getByText("Report not found")).toBeInTheDocument();
   });
+
+  it("renders untrusted report and Court fields as inert text", () => {
+    const payload = '"><img src=x onerror=alert(1)><script>alert("xss")</script>';
+    queryState.data = {
+      ...report,
+      candidateName: payload,
+      organizationName: payload,
+      checks: report.checks.map((check) =>
+        check.type === "court_record_search"
+          ? {
+              ...check,
+              fields: check.fields.map((field) => ({ ...field, declaredValue: payload })),
+              evidence: check.evidence.map((evidence) => ({ ...evidence, label: payload })),
+              notes: [payload],
+            }
+          : check,
+      ),
+    };
+
+    const { container } = render(<ReportPage />);
+
+    expect(container.textContent).toContain(payload);
+    expect(container.querySelector("script")).toBeNull();
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.innerHTML).toContain("&lt;script&gt;");
+  });
 });

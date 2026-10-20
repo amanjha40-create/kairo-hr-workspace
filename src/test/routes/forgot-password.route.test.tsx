@@ -209,4 +209,18 @@ describe("Forgot password route", () => {
     expect(toastErrorSpy).toHaveBeenCalledWith("Invalid or expired password reset token");
     expect(screen.getByText("Choose a new password")).toBeInTheDocument();
   });
+
+  it("does not render or persist an untrusted reset token", () => {
+    const payload = '"><img src=x onerror=alert(1)><script>alert("xss")</script>';
+    useSearchSpy.mockReturnValue({ reset_token: payload });
+
+    const { container } = render(<ForgotPasswordRoute />);
+
+    expect(screen.getByText("Choose a new password")).toBeInTheDocument();
+    expect(container.textContent).not.toContain(payload);
+    expect(container.querySelector("script")).toBeNull();
+    expect(container.querySelector("img")).toBeNull();
+    expect(window.localStorage.length).toBe(0);
+    expect(window.sessionStorage.length).toBe(0);
+  });
 });

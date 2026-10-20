@@ -86,6 +86,8 @@ const AcceptancePage = Route.options.component as ComponentType;
 describe("team invitation acceptance route", () => {
   beforeEach(() => {
     acceptSpy.mockReset();
+    queryState.data.organization_name = "Acme Limited";
+    queryState.data.invited_role = "reviewer";
     queryState.isPending = false;
     queryState.error = null;
     mutationState.isPending = false;
@@ -125,5 +127,17 @@ describe("team invitation acceptance route", () => {
     rerender(<AcceptancePage />);
     expect(screen.getByText("Invitation accepted")).toBeInTheDocument();
     expect(screen.getByText(/reviewer access to Acme Limited/i)).toBeInTheDocument();
+  });
+
+  it("renders an untrusted organization name as inert text", () => {
+    const payload = '"><img src=x onerror=alert(1)><script>alert("xss")</script>';
+    queryState.data.organization_name = payload;
+
+    const { container } = render(<AcceptancePage />);
+
+    expect(screen.getByText(`Join ${payload}`)).toBeInTheDocument();
+    expect(container.querySelector("script")).toBeNull();
+    expect(container.querySelector("img")).toBeNull();
+    expect(container.innerHTML).toContain("&lt;script&gt;");
   });
 });

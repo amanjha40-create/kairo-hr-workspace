@@ -9,57 +9,37 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SignupRouteImport } from './routes/signup'
-import { Route as OnboardingRouteImport } from './routes/onboarding'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
-import { Route as DashboardRouteImport } from './routes/dashboard'
-import { Route as AppRouteImport } from './routes/app'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AppRouteImport } from './routes/app'
+import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as OnboardingRouteImport } from './routes/onboarding'
+import { Route as SignupRouteImport } from './routes/signup'
 import { Route as AppIndexRouteImport } from './routes/app.index'
-import { Route as TeamInvitationsAcceptRouteImport } from './routes/team-invitations.accept'
-import { Route as EmployerVerificationTokenRouteImport } from './routes/employer-verification.$token'
-import { Route as AppTeamRouteImport } from './routes/app.team'
-import { Route as AppSetupRouteImport } from './routes/app.setup'
-import { Route as AppSettingsRouteImport } from './routes/app.settings'
-import { Route as AppReportsRouteImport } from './routes/app.reports'
-import { Route as AppProfileRouteImport } from './routes/app.profile'
-import { Route as AppNotificationsRouteImport } from './routes/app.notifications'
-import { Route as AppInvitationsRouteImport } from './routes/app.invitations'
 import { Route as AppSplatRouteImport } from './routes/app.$'
-import { Route as AppVerificationsIndexRouteImport } from './routes/app.verifications.index'
-import { Route as AppReportsIndexRouteImport } from './routes/app.reports.index'
-import { Route as AppPeopleIndexRouteImport } from './routes/app.people.index'
-import { Route as AppVerificationsIdRouteImport } from './routes/app.verifications.$id'
-import { Route as AppReportsIdRouteImport } from './routes/app.reports.$id'
-import { Route as AppPeopleIdRouteImport } from './routes/app.people.$id'
+import { Route as AppInvitationsRouteImport } from './routes/app.invitations'
+import { Route as AppNotificationsRouteImport } from './routes/app.notifications'
+import { Route as AppProfileRouteImport } from './routes/app.profile'
+import { Route as AppReportsRouteImport } from './routes/app.reports'
+import { Route as AppSettingsRouteImport } from './routes/app.settings'
+import { Route as AppSetupRouteImport } from './routes/app.setup'
+import { Route as AppTeamRouteImport } from './routes/app.team'
+import { Route as EmployerVerificationTokenRouteImport } from './routes/employer-verification.$token'
+import { Route as TeamInvitationsAcceptRouteImport } from './routes/team-invitations.accept'
 import { Route as AppInvitationsIdRouteImport } from './routes/app.invitations.$id'
+import { Route as AppPeopleIndexRouteImport } from './routes/app.people.index'
+import { Route as AppPeopleIdRouteImport } from './routes/app.people.$id'
+import { Route as AppReportsIndexRouteImport } from './routes/app.reports.index'
+import { Route as AppReportsIdRouteImport } from './routes/app.reports.$id'
+import { Route as AppVerificationsIndexRouteImport } from './routes/app.verifications.index'
+import { Route as AppVerificationsIdRouteImport } from './routes/app.verifications.$id'
 import { Route as AppPeopleImportsIndexRouteImport } from './routes/app.people.imports.index'
 import { Route as AppPeopleImportsIdRouteImport } from './routes/app.people.imports.$id'
 
-const SignupRoute = SignupRouteImport.update({
-  id: '/signup',
-  path: '/signup',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OnboardingRoute = OnboardingRouteImport.update({
-  id: '/onboarding',
-  path: '/onboarding',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
-  id: '/forgot-password',
-  path: '/forgot-password',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DashboardRoute = DashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppRoute = AppRouteImport.update({
@@ -67,9 +47,29 @@ const AppRoute = AppRouteImport.update({
   path: '/app',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OnboardingRoute = OnboardingRouteImport.update({
+  id: '/onboarding',
+  path: '/onboarding',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignupRoute = SignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppIndexRoute = AppIndexRouteImport.update({
@@ -77,45 +77,9 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
-const TeamInvitationsAcceptRoute = TeamInvitationsAcceptRouteImport.update({
-  id: '/team-invitations/accept',
-  path: '/team-invitations/accept',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const EmployerVerificationTokenRoute =
-  EmployerVerificationTokenRouteImport.update({
-    id: '/employer-verification/$token',
-    path: '/employer-verification/$token',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const AppTeamRoute = AppTeamRouteImport.update({
-  id: '/team',
-  path: '/team',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppSetupRoute = AppSetupRouteImport.update({
-  id: '/setup',
-  path: '/setup',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppSettingsRoute = AppSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppReportsRoute = AppReportsRouteImport.update({
-  id: '/reports',
-  path: '/reports',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppProfileRoute = AppProfileRouteImport.update({
-  id: '/profile',
-  path: '/profile',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppNotificationsRoute = AppNotificationsRouteImport.update({
-  id: '/notifications',
-  path: '/notifications',
+const AppSplatRoute = AppSplatRouteImport.update({
+  id: '/$',
+  path: '/$',
   getParentRoute: () => AppRoute,
 } as any)
 const AppInvitationsRoute = AppInvitationsRouteImport.update({
@@ -123,14 +87,60 @@ const AppInvitationsRoute = AppInvitationsRouteImport.update({
   path: '/invitations',
   getParentRoute: () => AppRoute,
 } as any)
-const AppSplatRoute = AppSplatRouteImport.update({
-  id: '/$',
-  path: '/$',
+const AppNotificationsRoute = AppNotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
   getParentRoute: () => AppRoute,
 } as any)
-const AppVerificationsIndexRoute = AppVerificationsIndexRouteImport.update({
-  id: '/verifications/',
-  path: '/verifications/',
+const AppProfileRoute = AppProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppReportsRoute = AppReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSettingsRoute = AppSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSetupRoute = AppSetupRouteImport.update({
+  id: '/setup',
+  path: '/setup',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTeamRoute = AppTeamRouteImport.update({
+  id: '/team',
+  path: '/team',
+  getParentRoute: () => AppRoute,
+} as any)
+const EmployerVerificationTokenRoute =
+  EmployerVerificationTokenRouteImport.update({
+    id: '/employer-verification/$token',
+    path: '/employer-verification/$token',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const TeamInvitationsAcceptRoute = TeamInvitationsAcceptRouteImport.update({
+  id: '/team-invitations/accept',
+  path: '/team-invitations/accept',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppInvitationsIdRoute = AppInvitationsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => AppInvitationsRoute,
+} as any)
+const AppPeopleIndexRoute = AppPeopleIndexRouteImport.update({
+  id: '/people/',
+  path: '/people/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppPeopleIdRoute = AppPeopleIdRouteImport.update({
+  id: '/people/$id',
+  path: '/people/$id',
   getParentRoute: () => AppRoute,
 } as any)
 const AppReportsIndexRoute = AppReportsIndexRouteImport.update({
@@ -138,30 +148,20 @@ const AppReportsIndexRoute = AppReportsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppReportsRoute,
 } as any)
-const AppPeopleIndexRoute = AppPeopleIndexRouteImport.update({
-  id: '/people/',
-  path: '/people/',
+const AppReportsIdRoute = AppReportsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => AppReportsRoute,
+} as any)
+const AppVerificationsIndexRoute = AppVerificationsIndexRouteImport.update({
+  id: '/verifications/',
+  path: '/verifications/',
   getParentRoute: () => AppRoute,
 } as any)
 const AppVerificationsIdRoute = AppVerificationsIdRouteImport.update({
   id: '/verifications/$id',
   path: '/verifications/$id',
   getParentRoute: () => AppRoute,
-} as any)
-const AppReportsIdRoute = AppReportsIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => AppReportsRoute,
-} as any)
-const AppPeopleIdRoute = AppPeopleIdRouteImport.update({
-  id: '/people/$id',
-  path: '/people/$id',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppInvitationsIdRoute = AppInvitationsIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => AppInvitationsRoute,
 } as any)
 const AppPeopleImportsIndexRoute = AppPeopleImportsIndexRouteImport.update({
   id: '/people/imports/',
@@ -362,39 +362,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/signup': {
-      id: '/signup'
-      path: '/signup'
-      fullPath: '/signup'
-      preLoaderRoute: typeof SignupRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/onboarding': {
-      id: '/onboarding'
-      path: '/onboarding'
-      fullPath: '/onboarding'
-      preLoaderRoute: typeof OnboardingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/forgot-password': {
-      id: '/forgot-password'
-      path: '/forgot-password'
-      fullPath: '/forgot-password'
-      preLoaderRoute: typeof ForgotPasswordRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/dashboard': {
-      id: '/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof DashboardRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/app': {
@@ -404,11 +376,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/onboarding': {
+      id: '/onboarding'
+      path: '/onboarding'
+      fullPath: '/onboarding'
+      preLoaderRoute: typeof OnboardingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/app/': {
@@ -418,60 +418,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
-    '/team-invitations/accept': {
-      id: '/team-invitations/accept'
-      path: '/team-invitations/accept'
-      fullPath: '/team-invitations/accept'
-      preLoaderRoute: typeof TeamInvitationsAcceptRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/employer-verification/$token': {
-      id: '/employer-verification/$token'
-      path: '/employer-verification/$token'
-      fullPath: '/employer-verification/$token'
-      preLoaderRoute: typeof EmployerVerificationTokenRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/app/team': {
-      id: '/app/team'
-      path: '/team'
-      fullPath: '/app/team'
-      preLoaderRoute: typeof AppTeamRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/app/setup': {
-      id: '/app/setup'
-      path: '/setup'
-      fullPath: '/app/setup'
-      preLoaderRoute: typeof AppSetupRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/app/settings': {
-      id: '/app/settings'
-      path: '/settings'
-      fullPath: '/app/settings'
-      preLoaderRoute: typeof AppSettingsRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/app/reports': {
-      id: '/app/reports'
-      path: '/reports'
-      fullPath: '/app/reports'
-      preLoaderRoute: typeof AppReportsRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/app/profile': {
-      id: '/app/profile'
-      path: '/profile'
-      fullPath: '/app/profile'
-      preLoaderRoute: typeof AppProfileRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/app/notifications': {
-      id: '/app/notifications'
-      path: '/notifications'
-      fullPath: '/app/notifications'
-      preLoaderRoute: typeof AppNotificationsRouteImport
+    '/app/$': {
+      id: '/app/$'
+      path: '/$'
+      fullPath: '/app/$'
+      preLoaderRoute: typeof AppSplatRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/invitations': {
@@ -481,18 +432,81 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppInvitationsRouteImport
       parentRoute: typeof AppRoute
     }
-    '/app/$': {
-      id: '/app/$'
-      path: '/$'
-      fullPath: '/app/$'
-      preLoaderRoute: typeof AppSplatRouteImport
+    '/app/notifications': {
+      id: '/app/notifications'
+      path: '/notifications'
+      fullPath: '/app/notifications'
+      preLoaderRoute: typeof AppNotificationsRouteImport
       parentRoute: typeof AppRoute
     }
-    '/app/verifications/': {
-      id: '/app/verifications/'
-      path: '/verifications'
-      fullPath: '/app/verifications/'
-      preLoaderRoute: typeof AppVerificationsIndexRouteImport
+    '/app/profile': {
+      id: '/app/profile'
+      path: '/profile'
+      fullPath: '/app/profile'
+      preLoaderRoute: typeof AppProfileRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/reports': {
+      id: '/app/reports'
+      path: '/reports'
+      fullPath: '/app/reports'
+      preLoaderRoute: typeof AppReportsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/settings': {
+      id: '/app/settings'
+      path: '/settings'
+      fullPath: '/app/settings'
+      preLoaderRoute: typeof AppSettingsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/setup': {
+      id: '/app/setup'
+      path: '/setup'
+      fullPath: '/app/setup'
+      preLoaderRoute: typeof AppSetupRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/team': {
+      id: '/app/team'
+      path: '/team'
+      fullPath: '/app/team'
+      preLoaderRoute: typeof AppTeamRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/employer-verification/$token': {
+      id: '/employer-verification/$token'
+      path: '/employer-verification/$token'
+      fullPath: '/employer-verification/$token'
+      preLoaderRoute: typeof EmployerVerificationTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/team-invitations/accept': {
+      id: '/team-invitations/accept'
+      path: '/team-invitations/accept'
+      fullPath: '/team-invitations/accept'
+      preLoaderRoute: typeof TeamInvitationsAcceptRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/app/invitations/$id': {
+      id: '/app/invitations/$id'
+      path: '/$id'
+      fullPath: '/app/invitations/$id'
+      preLoaderRoute: typeof AppInvitationsIdRouteImport
+      parentRoute: typeof AppInvitationsRoute
+    }
+    '/app/people/': {
+      id: '/app/people/'
+      path: '/people'
+      fullPath: '/app/people/'
+      preLoaderRoute: typeof AppPeopleIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/people/$id': {
+      id: '/app/people/$id'
+      path: '/people/$id'
+      fullPath: '/app/people/$id'
+      preLoaderRoute: typeof AppPeopleIdRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/reports/': {
@@ -502,11 +516,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppReportsIndexRouteImport
       parentRoute: typeof AppReportsRoute
     }
-    '/app/people/': {
-      id: '/app/people/'
-      path: '/people'
-      fullPath: '/app/people/'
-      preLoaderRoute: typeof AppPeopleIndexRouteImport
+    '/app/reports/$id': {
+      id: '/app/reports/$id'
+      path: '/$id'
+      fullPath: '/app/reports/$id'
+      preLoaderRoute: typeof AppReportsIdRouteImport
+      parentRoute: typeof AppReportsRoute
+    }
+    '/app/verifications/': {
+      id: '/app/verifications/'
+      path: '/verifications'
+      fullPath: '/app/verifications/'
+      preLoaderRoute: typeof AppVerificationsIndexRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/verifications/$id': {
@@ -515,27 +536,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/app/verifications/$id'
       preLoaderRoute: typeof AppVerificationsIdRouteImport
       parentRoute: typeof AppRoute
-    }
-    '/app/reports/$id': {
-      id: '/app/reports/$id'
-      path: '/$id'
-      fullPath: '/app/reports/$id'
-      preLoaderRoute: typeof AppReportsIdRouteImport
-      parentRoute: typeof AppReportsRoute
-    }
-    '/app/people/$id': {
-      id: '/app/people/$id'
-      path: '/people/$id'
-      fullPath: '/app/people/$id'
-      preLoaderRoute: typeof AppPeopleIdRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/app/invitations/$id': {
-      id: '/app/invitations/$id'
-      path: '/$id'
-      fullPath: '/app/invitations/$id'
-      preLoaderRoute: typeof AppInvitationsIdRouteImport
-      parentRoute: typeof AppInvitationsRoute
     }
     '/app/people/imports/': {
       id: '/app/people/imports/'

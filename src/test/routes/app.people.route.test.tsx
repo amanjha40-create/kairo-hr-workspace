@@ -16,6 +16,7 @@ const refetchAllSpy = vi.fn();
 const refetchFilteredSpy = vi.fn();
 const setInviteOpenSpy = vi.fn();
 const setSearchSpy = vi.fn();
+let dashboardSearch = "";
 
 const accessState: {
   org: { publicId: string } | null;
@@ -163,7 +164,7 @@ vi.mock("@/components/app/workspace-pills", () => ({
 vi.mock("@/lib/dashboard-context", () => ({
   useDashboard: () => ({
     setInviteOpen: setInviteOpenSpy,
-    search: "",
+    search: dashboardSearch,
     setSearch: setSearchSpy,
   }),
 }));
@@ -201,6 +202,7 @@ describe("People directory page", () => {
     refetchFilteredSpy.mockReset();
     setInviteOpenSpy.mockReset();
     setSearchSpy.mockReset();
+    dashboardSearch = "";
     accessState.org = { publicId: "org_123" };
     accessState.membershipRole = "owner";
     accessState.can = (action: string) =>
@@ -279,5 +281,16 @@ describe("People directory page", () => {
     render(<PeoplePage />);
 
     expect(screen.getByText("Permission denied")).toBeInTheDocument();
+  });
+
+  it("keeps untrusted People search text inert", () => {
+    const payload = '"><img src=x onerror=alert(1)><script>alert("xss")</script>';
+    dashboardSearch = payload;
+
+    const { container } = render(<PeoplePage />);
+
+    expect(screen.getByLabelText("Search by name, email or reference")).toHaveValue(payload);
+    expect(container.querySelector("script")).toBeNull();
+    expect(container.querySelector("img")).toBeNull();
   });
 });
