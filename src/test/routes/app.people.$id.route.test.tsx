@@ -407,6 +407,46 @@ describe("Person detail page", () => {
     });
   });
 
+  it("omits an unchanged inactive historical role for a joining-date-only edit", async () => {
+    detailQueryState.data = makePersonDetailRecord({
+      roleId: "role_historical",
+      role: "Historical Role",
+      department: "Operations",
+      joiningDate: "2025-01-15",
+    });
+    jobRolesQueryState.data = [
+      ...jobRolesQueryState.data,
+      {
+        public_id: "role_historical",
+        name: "Historical Role",
+        description: null,
+        is_active: false,
+        assigned_people_count: 1,
+        created_at: "2025-01-01T00:00:00Z",
+        updated_at: "2026-01-01T00:00:00Z",
+      },
+    ];
+
+    render(<PersonDetail />);
+    fireEvent.click(screen.getByText("Edit employment"));
+    fireEvent.change(screen.getByLabelText("Joining date"), {
+      target: { value: "2025-02-01" },
+    });
+    fireEvent.click(screen.getByText("Save profile"));
+
+    await waitFor(() => {
+      expect(profileMutationSpy).toHaveBeenCalledWith({
+        orgPublicId: "org_123",
+        personPublicId: "person_123",
+        payload: {
+          department: "Operations",
+          joining_date: "2025-02-01",
+        },
+      });
+      expect(profileMutationSpy.mock.calls[0]?.[0].payload).not.toHaveProperty("role_id");
+    });
+  });
+
   it("sends a newly selected active role", async () => {
     render(<PersonDetail />);
     fireEvent.click(screen.getByText("Edit employment"));
