@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BriefcaseBusiness, Loader2, Pencil, Plus, PowerOff } from "lucide-react";
+import { BriefcaseBusiness, Check, Loader2, Pencil, Plus, PowerOff, X } from "lucide-react";
 import { toast } from "sonner";
 import { EmptyState, SectionCard, TableSkeleton } from "@/components/app/primitives";
 import { Button } from "@/components/ui/button";
@@ -15,38 +15,61 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { OrganizationJobRole } from "@/lib/api/hr-v2";
 import { getOrganizationPeopleErrorMessage } from "@/lib/organization-people";
 import {
+  useApproveOrganizationJobRoleMutation,
   useCreateOrganizationJobRoleMutation,
   useDeactivateOrganizationJobRoleMutation,
   useOrganizationJobRolesQuery,
+  useRejectOrganizationJobRoleMutation,
   useUpdateOrganizationJobRoleMutation,
 } from "@/lib/queries/hr-v2";
 
 export function OrganizationRolesCard({
   orgPublicId,
+  canCreate = true,
   canManage,
 }: {
   orgPublicId: string;
+  canCreate?: boolean;
   canManage: boolean;
 }) {
   const rolesQuery = useOrganizationJobRolesQuery(orgPublicId);
   const createMutation = useCreateOrganizationJobRoleMutation(orgPublicId);
   const updateMutation = useUpdateOrganizationJobRoleMutation(orgPublicId);
   const deactivateMutation = useDeactivateOrganizationJobRoleMutation(orgPublicId);
+  const approveMutation = useApproveOrganizationJobRoleMutation(orgPublicId);
+  const rejectMutation = useRejectOrganizationJobRoleMutation(orgPublicId);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<OrganizationJobRole | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [department, setDepartment] = useState("");
+  const [location, setLocation] = useState("");
+  const [workMode, setWorkMode] = useState<"none" | "onsite" | "hybrid" | "remote">("none");
 
   const pending =
-    createMutation.isPending || updateMutation.isPending || deactivateMutation.isPending;
+    createMutation.isPending ||
+    updateMutation.isPending ||
+    deactivateMutation.isPending ||
+    approveMutation.isPending ||
+    rejectMutation.isPending;
 
   function openEditor(role?: OrganizationJobRole) {
     setEditing(role ?? null);
     setName(role?.name ?? "");
     setDescription(role?.description ?? "");
+    setDepartment(role?.department ?? "");
+    setLocation(role?.location ?? "");
+    setWorkMode(role?.work_mode ?? "none");
     setOpen(true);
   }
 
@@ -56,19 +79,47 @@ export function OrganizationRolesCard({
       if (editing) {
         await updateMutation.mutateAsync({
           rolePublicId: editing.public_id,
-          payload: { name: name.trim(), description: description.trim() || null },
+          payload: {
+            name: name.trim(),
+            description: description.trim() || null,
+            department: department.trim() || null,
+            location: location.trim() || null,
+            work_mode: workMode === "none" ? null : workMode,
+          },
         });
         toast.success("Role updated");
       } else {
-        await createMutation.mutateAsync({
+        const created = await createMutation.mutateAsync({
           name: name.trim(),
           description: description.trim() || null,
+          department: department.trim() || null,
+          location: location.trim() || null,
+          work_mode: workMode === "none" ? null : workMode,
+          mode: "submit",
         });
-        toast.success("Role created");
+        toast.success(
+          created.status === "pending_approval"
+            ? "Hiring Role proposed for approval"
+            : "Hiring Role created",
+        );
       }
       setOpen(false);
     } catch (error) {
       toast.error(getOrganizationPeopleErrorMessage(error, "We couldn't save that role."));
+    }
+  }
+
+  async function decide(role: OrganizationJobRole, action: "approve" | "reject") {
+    try {
+      if (action === "approve") {
+        await approveMutation.mutateAsync(role.public_id);
+        toast.success("Hiring Role approved");
+      } else {
+        await rejectMutation.mutateAsync({ rolePublicId: role.public_id });
+        toast.success("Hiring Role rejected");
+      }
+    } catch (error) {
+      toast.error(getOrganizationPeopleErrorMessage(error, `We couldn't ${action} that role.`));
     }
   }
 
@@ -85,14 +136,14 @@ export function OrganizationRolesCard({
   return (
     <>
       <SectionCard
-        title="People by role"
-        description="Organization-wide counts from the canonical role projection"
+        title="Hiring Roles"
+        description="Create roles for candidate invitations and review Member proposals"
       >
         <div className="border-b border-border/60 p-4 flex items-center justify-between gap-3">
           <p className="text-xs text-muted-foreground">
             Job roles describe employees; they do not grant workspace permissions.
           </p>
-          {canManage ? (
+          {canCreate ? (
             <Button size="sm" variant="outline" className="rounded-xl" onClick={() => openEditor()}>
               <Plus className="mr-1.5 h-4 w-4" /> Create role
             </Button>
@@ -120,11 +171,33 @@ export function OrganizationRolesCard({
                     <div className="text-[11px] text-muted-foreground">people assigned</div>
                   </div>
                   <Badge variant="outline" className="rounded-full">
-                    {role.is_active ? "Active" : "Inactive"}
+                    {formatRoleStatus(role.status)}
                   </Badge>
                 </div>
                 {canManage ? (
                   <div className="mt-3 flex gap-1 border-t border-border/60 pt-3">
+                    {role.status === "pending_approval" ? (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 rounded-lg text-success"
+                          disabled={pending}
+                          onClick={() => void decide(role, "approve")}
+                        >
+                          <Check className="mr-1 h-3.5 w-3.5" /> Approve
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 rounded-lg text-destructive"
+                          disabled={pending}
+                          onClick={() => void decide(role, "reject")}
+                        >
+                          <X className="mr-1 h-3.5 w-3.5" /> Reject
+                        </Button>
+                      </>
+                    ) : null}
                     <Button
                       size="sm"
                       variant="ghost"
@@ -133,7 +206,7 @@ export function OrganizationRolesCard({
                     >
                       <Pencil className="mr-1 h-3.5 w-3.5" /> Edit
                     </Button>
-                    {role.is_active ? (
+                    {role.status === "active" ? (
                       <Button
                         size="sm"
                         variant="ghost"
@@ -154,7 +227,7 @@ export function OrganizationRolesCard({
             icon={BriefcaseBusiness}
             title="No job roles yet"
             description="Create a role to assign structured job titles to People and invitations."
-            action={canManage ? { label: "Create role", onClick: () => openEditor() } : undefined}
+            action={canCreate ? { label: "Create role", onClick: () => openEditor() } : undefined}
           />
         )}
       </SectionCard>
@@ -180,6 +253,48 @@ export function OrganizationRolesCard({
                 autoFocus
               />
             </div>
+            <div>
+              <Label htmlFor="job-role-department">Department</Label>
+              <Input
+                id="job-role-department"
+                value={department}
+                onChange={(event) => setDepartment(event.target.value)}
+                className="mt-1.5 rounded-xl"
+                placeholder="Engineering"
+              />
+            </div>
+            <div>
+              <Label htmlFor="job-role-location">Location</Label>
+              <Input
+                id="job-role-location"
+                value={location}
+                onChange={(event) => setLocation(event.target.value)}
+                className="mt-1.5 rounded-xl"
+                placeholder="Bengaluru"
+              />
+            </div>
+            <div>
+              <Label>Work mode</Label>
+              <Select
+                value={workMode}
+                onValueChange={(value) => setWorkMode(value as typeof workMode)}
+              >
+                <SelectTrigger className="mt-1.5 rounded-xl">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Not specified</SelectItem>
+                  <SelectItem value="onsite">On-site</SelectItem>
+                  <SelectItem value="hybrid">Hybrid</SelectItem>
+                  <SelectItem value="remote">Remote</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {!canManage && !editing ? (
+              <p className="text-xs text-muted-foreground">
+                Your role proposal will remain Pending approval until an Owner or Admin approves it.
+              </p>
+            ) : null}
             <div>
               <Label htmlFor="job-role-description">Description</Label>
               <Textarea
@@ -208,4 +323,11 @@ export function OrganizationRolesCard({
       </Dialog>
     </>
   );
+}
+
+function formatRoleStatus(status: OrganizationJobRole["status"]) {
+  return status
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }

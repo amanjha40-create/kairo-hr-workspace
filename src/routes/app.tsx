@@ -14,7 +14,6 @@ import {
   LogOut,
   Loader2,
   User,
-  CircleUser,
   Menu,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -404,11 +403,6 @@ function AppLayout() {
               <DropdownMenuItem asChild>
                 <Link to="/app/profile">
                   <User className="h-4 w-4 mr-2" /> My profile
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link to="/app/profile">
-                  <CircleUser className="h-4 w-4 mr-2" /> My account
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>

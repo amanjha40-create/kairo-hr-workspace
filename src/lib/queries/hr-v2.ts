@@ -1,10 +1,13 @@
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  approveOrganizationJobRole,
   createOrganizationJobRole,
+  createFormerEmployeeCorrection,
   deactivateOrganizationJobRole,
   getOrganizationLogo,
   getOrganizationVerificationPreferences,
   listOrganizationJobRoles,
+  rejectOrganizationJobRole,
   removeOrganizationLogo,
   updateEmployeeLifecycle,
   updateEmploymentProfile,
@@ -12,6 +15,7 @@ import {
   updateOrganizationVerificationPreferences,
   uploadOrganizationLogo,
   type EmploymentProfilePayload,
+  type FormerEmployeeCorrectionPayload,
   type OrganizationJobRolePayload,
   type OrganizationJobRoleUpdatePayload,
   type VerificationPreferencesPayload,
@@ -91,6 +95,28 @@ export function useDeactivateOrganizationJobRoleMutation(orgPublicId: string | u
   });
 }
 
+export function useApproveOrganizationJobRoleMutation(orgPublicId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (rolePublicId: string) =>
+      approveOrganizationJobRole(requireOrganization(orgPublicId), rolePublicId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: hrV2QueryKeys.roles(orgPublicId ?? "") });
+    },
+  });
+}
+
+export function useRejectOrganizationJobRoleMutation(orgPublicId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ rolePublicId, reason }: { rolePublicId: string; reason?: string }) =>
+      rejectOrganizationJobRole(requireOrganization(orgPublicId), rolePublicId, reason),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: hrV2QueryKeys.roles(orgPublicId ?? "") });
+    },
+  });
+}
+
 export function useEmployeeLifecycleMutation() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -126,6 +152,22 @@ export function useEmploymentProfileMutation() {
   });
 }
 
+export function useFormerEmployeeCorrectionMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      orgPublicId,
+      personPublicId,
+      payload,
+    }: {
+      orgPublicId: string;
+      personPublicId: string;
+      payload: FormerEmployeeCorrectionPayload;
+    }) => createFormerEmployeeCorrection(orgPublicId, personPublicId, payload),
+    onSuccess: async () => invalidatePeople(queryClient),
+  });
+}
+
 export function useOrganizationLogoQuery(orgPublicId: string | undefined) {
   return useQuery({
     queryKey: hrV2QueryKeys.logo(orgPublicId ?? ""),
@@ -140,8 +182,12 @@ export function useUploadOrganizationLogoMutation(orgPublicId: string | undefine
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (file: File) => uploadOrganizationLogo(requireOrganization(orgPublicId), file),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: hrV2QueryKeys.logo(orgPublicId ?? "") });
+    onSuccess: (logo) => {
+      queryClient.setQueryData(hrV2QueryKeys.logo(orgPublicId ?? ""), logo);
+      void queryClient.invalidateQueries({
+        queryKey: hrV2QueryKeys.logo(orgPublicId ?? ""),
+        refetchType: "inactive",
+      });
     },
   });
 }

@@ -7,6 +7,8 @@ const acceptSpy = vi.fn();
 const queryState = {
   data: {
     organization_name: "Acme Limited",
+    invitee_name: "Alex Morgan",
+    personal_message: "Welcome to the team.",
     invited_role: "reviewer" as const,
     status: "pending",
     expires_at: "2026-10-25T00:00:00Z",
@@ -23,6 +25,7 @@ const mutationState = {
     membership_public_id: "membership-1",
     role: "reviewer" as const,
     accepted_at: "2026-10-18T10:00:00Z",
+    requires_organization_setup: false,
   },
 };
 const authState = {
@@ -81,12 +84,15 @@ vi.mock("@/components/ui/button", () => ({
 }));
 
 const { Route } = await import("../../routes/team-invitations.accept");
+const { getTeamInvitationDestination } = await import("../../lib/team-invitation-acceptance");
 const AcceptancePage = Route.options.component as ComponentType;
 
 describe("team invitation acceptance route", () => {
   beforeEach(() => {
     acceptSpy.mockReset();
     queryState.data.organization_name = "Acme Limited";
+    queryState.data.invitee_name = "Alex Morgan";
+    queryState.data.personal_message = "Welcome to the team.";
     queryState.data.invited_role = "reviewer";
     queryState.isPending = false;
     queryState.error = null;
@@ -109,6 +115,9 @@ describe("team invitation acceptance route", () => {
       ]),
     });
     expect(screen.getByText("Join Acme Limited")).toBeInTheDocument();
+    expect(screen.getByText("Invitation for Alex Morgan")).toBeInTheDocument();
+    expect(screen.getByText("Welcome to the team.")).toBeInTheDocument();
+    expect(screen.getByText(/joins the existing organization/i)).toBeInTheDocument();
     expect(screen.getByText("Sign in to accept").closest("a")).toHaveAttribute(
       "href",
       `/login?returnTo=${encodeURIComponent(`/team-invitations/accept?token=${token}`)}`,
@@ -127,6 +136,8 @@ describe("team invitation acceptance route", () => {
     rerender(<AcceptancePage />);
     expect(screen.getByText("Invitation accepted")).toBeInTheDocument();
     expect(screen.getByText(/reviewer access to Acme Limited/i)).toBeInTheDocument();
+    expect(getTeamInvitationDestination(false)).toBe("/app");
+    expect(getTeamInvitationDestination(true)).toBe("/app/setup");
   });
 
   it("renders an untrusted organization name as inert text", () => {

@@ -9,6 +9,7 @@ const updateNoteSpy = vi.fn();
 const deleteNoteSpy = vi.fn();
 const lifecycleMutationSpy = vi.fn();
 const profileMutationSpy = vi.fn();
+const correctionMutationSpy = vi.fn();
 const lifecycleMutationState = {
   isPending: false,
   error: null as unknown,
@@ -224,6 +225,11 @@ vi.mock("@/lib/queries/hr-v2", () => ({
     isPending: false,
     error: null,
   }),
+  useFormerEmployeeCorrectionMutation: () => ({
+    mutateAsync: correctionMutationSpy,
+    isPending: false,
+    error: null,
+  }),
   useOrganizationJobRolesQuery: () => ({ ...jobRolesQueryState, isPending: false }),
 }));
 
@@ -238,7 +244,9 @@ describe("Person detail page", () => {
     deleteNoteSpy.mockReset();
     lifecycleMutationSpy.mockReset();
     profileMutationSpy.mockReset();
+    correctionMutationSpy.mockReset();
     lifecycleMutationSpy.mockResolvedValue({ employment_status: "ex_employee" });
+    correctionMutationSpy.mockResolvedValue({ public_id: "correction_1", status: "pending" });
     lifecycleMutationState.isPending = false;
     lifecycleMutationState.error = null;
     jobRolesQueryState.data = [
@@ -364,6 +372,40 @@ describe("Person detail page", () => {
 
     expect(screen.queryByText(/reactivate/i)).not.toBeInTheDocument();
     expect(screen.queryByText("Mark as ex-employee")).not.toBeInTheDocument();
+  });
+
+  it("locks normal former-employee editing and submits an audited correction request", async () => {
+    detailQueryState.data = makePersonDetailRecord({
+      relationship: "Former Employee",
+      employmentStatus: "ex_employee",
+      lastWorkingDay: "2026-08-31",
+      department: "Engineering",
+    });
+
+    render(<PersonDetail />);
+
+    expect(screen.queryByText("Edit employment")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText("Request correction"));
+    expect(screen.getByText(/Former-employee history is locked/i)).toBeInTheDocument();
+    fireEvent.change(document.querySelector("#employment-department")!, {
+      target: { value: "Platform Engineering" },
+    });
+    fireEvent.change(screen.getByLabelText("Explain why this historical record needs correction"), {
+      target: { value: "Correcting the historical department assignment" },
+    });
+    fireEvent.click(screen.getByText("Submit correction request"));
+
+    await waitFor(() =>
+      expect(correctionMutationSpy).toHaveBeenCalledWith({
+        orgPublicId: "org_123",
+        personPublicId: "person_123",
+        payload: {
+          proposed_changes: { department: "Platform Engineering" },
+          reason: "Correcting the historical department assignment",
+        },
+      }),
+    );
+    expect(profileMutationSpy).not.toHaveBeenCalled();
   });
 
   it("omits an unchanged inactive historical role while patching employment metadata", async () => {

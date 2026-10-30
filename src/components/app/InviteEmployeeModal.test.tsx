@@ -4,25 +4,44 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { InviteEmployeeModal } from "./InviteEmployeeModal";
 import { makeTrustInvitationRecord } from "@/test/trust-invitation-fixtures";
 
-const { mutateAsyncSpy, resetMutationSpy, setInviteOpenSpy, toastSuccessSpy, toastErrorSpy } =
-  vi.hoisted(() => ({
-    mutateAsyncSpy: vi.fn(),
-    resetMutationSpy: vi.fn(),
-    setInviteOpenSpy: vi.fn(),
-    toastSuccessSpy: vi.fn(),
-    toastErrorSpy: vi.fn(),
-  }));
+const {
+  mutateAsyncSpy,
+  updateDraftSpy,
+  sendDraftSpy,
+  createRoleSpy,
+  resetMutationSpy,
+  setInviteOpenSpy,
+  toastSuccessSpy,
+  toastErrorSpy,
+} = vi.hoisted(() => ({
+  mutateAsyncSpy: vi.fn(),
+  updateDraftSpy: vi.fn(),
+  sendDraftSpy: vi.fn(),
+  createRoleSpy: vi.fn(),
+  resetMutationSpy: vi.fn(),
+  setInviteOpenSpy: vi.fn(),
+  toastSuccessSpy: vi.fn(),
+  toastErrorSpy: vi.fn(),
+}));
 
 const dashboardState = {
   inviteOpen: true,
   setInviteOpen: setInviteOpenSpy,
+  editingInvitationId: null as string | null,
+  clearInvitationDraft: vi.fn(),
+};
+
+const draftQueryState = {
+  data: undefined as ReturnType<typeof makeTrustInvitationRecord> | undefined,
 };
 
 const accessState: {
   org: { publicId: string; name: string } | null;
+  membershipRole: "owner" | "admin" | "member";
   can: (action: string) => boolean;
 } = {
   org: { publicId: "org_123", name: "Acme Limited" },
+  membershipRole: "owner" as const,
   can: (action: string) => action === "invite_candidate",
 };
 
@@ -168,9 +187,23 @@ vi.mock("@/lib/queries/trust-invitations", () => ({
     error: null,
     reset: resetMutationSpy,
   }),
+  useUpdateTrustInvitationDraftMutation: () => ({
+    mutateAsync: updateDraftSpy,
+    isPending: false,
+    isError: false,
+    error: null,
+    reset: vi.fn(),
+  }),
+  useSendTrustInvitationMutation: () => ({
+    mutateAsync: sendDraftSpy,
+    isPending: false,
+    reset: vi.fn(),
+  }),
+  useTrustInvitationDetailQuery: () => draftQueryState,
 }));
 
 vi.mock("@/lib/queries/hr-v2", () => ({
+  useCreateOrganizationJobRoleMutation: () => ({ mutateAsync: createRoleSpy, isPending: false }),
   useOrganizationJobRolesQuery: () => ({
     data: [
       {
@@ -203,11 +236,16 @@ vi.mock("sonner", () => ({
 describe("InviteEmployeeModal", () => {
   beforeEach(() => {
     mutateAsyncSpy.mockReset();
+    updateDraftSpy.mockReset();
+    sendDraftSpy.mockReset();
+    createRoleSpy.mockReset();
     resetMutationSpy.mockReset();
     setInviteOpenSpy.mockReset();
     toastSuccessSpy.mockReset();
     toastErrorSpy.mockReset();
     dashboardState.inviteOpen = true;
+    dashboardState.editingInvitationId = null;
+    draftQueryState.data = undefined;
     accessState.org = { publicId: "org_123", name: "Acme Limited" };
     accessState.can = (action: string) => action === "invite_candidate";
   });
@@ -290,7 +328,15 @@ describe("InviteEmployeeModal", () => {
 
     await waitFor(() =>
       expect(mutateAsyncSpy).toHaveBeenCalledWith(
-        expect.objectContaining({ requested_verification_types: ["identity"] }),
+        expect.objectContaining({
+          requirements: [
+            {
+              requirement_type: "identity",
+              mandatory: true,
+              configuration: {},
+            },
+          ],
+        }),
       ),
     );
   });
@@ -307,9 +353,7 @@ describe("InviteEmployeeModal", () => {
     fireEvent.click(screen.getByText("Send invitation"));
 
     await waitFor(() =>
-      expect(mutateAsyncSpy).toHaveBeenCalledWith(
-        expect.objectContaining({ requested_verification_types: [] }),
-      ),
+      expect(mutateAsyncSpy).toHaveBeenCalledWith(expect.objectContaining({ requirements: [] })),
     );
   });
 
@@ -350,5 +394,71 @@ describe("InviteEmployeeModal", () => {
 
     expect(screen.getByText("Invitation access is read-only")).toBeInTheDocument();
     expect(screen.getByText("Continue")).toBeDisabled();
+  });
+
+  it("creates an Active Hiring Role inline for an Owner and selects it", async () => {
+    createRoleSpy.mockResolvedValue({
+      public_id: "role-new",
+      name: "Data Engineer",
+      status: "active",
+    });
+    render(<InviteEmployeeModal />);
+
+    fireEvent.click(screen.getByText("+ Create New Role"));
+    fireEvent.change(screen.getByLabelText("Senior Software Engineer"), {
+      target: { value: "Data Engineer" },
+    });
+    fireEvent.change(screen.getByLabelText("Engineering"), {
+      target: { value: "Data" },
+    });
+    fireEvent.click(screen.getByText("Create role"));
+
+    await waitFor(() =>
+      expect(createRoleSpy).toHaveBeenCalledWith({
+        name: "Data Engineer",
+        department: "Data",
+        mode: "submit",
+      }),
+    );
+    expect(toastSuccessSpy).toHaveBeenCalledWith("Hiring Role created and selected");
+  });
+
+  it("reopens a saved draft with backend values and saves edits through PATCH", async () => {
+    dashboardState.editingInvitationId = "ti_draft";
+    draftQueryState.data = makeTrustInvitationRecord({
+      id: "ti_draft",
+      status: "Draft",
+      backendStatus: "draft",
+      candidateName: "Original Candidate",
+      candidateEmail: "original@example.com",
+      roleId: "role_software_engineer",
+      role: "Software Engineer",
+      purpose: "Software Engineer",
+      message: "Original message",
+    });
+    updateDraftSpy.mockResolvedValue(draftQueryState.data);
+
+    render(<InviteEmployeeModal />);
+
+    expect(await screen.findByDisplayValue("Original Candidate")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("original@example.com")).toBeInTheDocument();
+    fireEvent.change(screen.getByDisplayValue("Original Candidate"), {
+      target: { value: "Edited Candidate" },
+    });
+    fireEvent.click(screen.getByText("Save as draft"));
+
+    await waitFor(() =>
+      expect(updateDraftSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          invitationPublicId: "ti_draft",
+          payload: expect.objectContaining({
+            subject_name: "Edited Candidate",
+            subject_email: "original@example.com",
+            message: "Original message",
+          }),
+        }),
+      ),
+    );
+    expect(mutateAsyncSpy).not.toHaveBeenCalled();
   });
 });

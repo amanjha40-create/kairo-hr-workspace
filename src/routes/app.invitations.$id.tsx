@@ -17,6 +17,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useAccess } from "@/lib/access-context";
+import { useDashboard } from "@/lib/dashboard-context";
 import {
   ArrowLeft,
   Copy,
@@ -54,6 +55,7 @@ export const Route = createFileRoute("/app/invitations/$id")({
 function InvitationDetailPage() {
   const { id } = Route.useParams();
   const { org, can } = useAccess();
+  const { openInvitationDraft } = useDashboard();
   const navigate = useNavigate({ from: Route.fullPath });
   const canInvite = can("invite_candidate");
   const canModify = can("modify_invitation");
@@ -162,20 +164,30 @@ function InvitationDetailPage() {
               <Copy className="h-3.5 w-3.5 mr-1.5" /> Copy link
             </Button>
             {invitation.status === "Draft" && canInvite ? (
-              <Button
-                size="sm"
-                className="btn-premium rounded-xl"
-                onClick={() =>
-                  void runAction(
-                    () => sendMutation.mutateAsync(invitation.id),
-                    "Invitation sent",
-                    "We couldn't send this invitation.",
-                  )
-                }
-                disabled={sendMutation.isPending}
-              >
-                <Send className="h-3.5 w-3.5 mr-1.5" /> Send now
-              </Button>
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="rounded-xl"
+                  onClick={() => openInvitationDraft(invitation.id)}
+                >
+                  <FileEdit className="h-3.5 w-3.5 mr-1.5" /> Edit draft
+                </Button>
+                <Button
+                  size="sm"
+                  className="btn-premium rounded-xl"
+                  onClick={() =>
+                    void runAction(
+                      () => sendMutation.mutateAsync(invitation.id),
+                      "Invitation sent",
+                      "We couldn't send this invitation.",
+                    )
+                  }
+                  disabled={sendMutation.isPending}
+                >
+                  <Send className="h-3.5 w-3.5 mr-1.5" /> Send now
+                </Button>
+              </>
             ) : null}
             {(invitation.status === "Sent" || invitation.status === "Opened") && canModify ? (
               <Button
@@ -184,7 +196,7 @@ function InvitationDetailPage() {
                 onClick={() =>
                   void runAction(
                     () => resendMutation.mutateAsync(invitation.id),
-                    "Reminder sent",
+                    "Reminder email sent",
                     "We couldn't resend this invitation.",
                   )
                 }
@@ -268,6 +280,7 @@ function InvitationDetailPage() {
                 <Info icon={User} label="Phone" value={invitation.candidatePhone} />
               ) : null}
               <Info icon={FileEdit} label="Purpose" value={invitation.purpose ?? "—"} />
+              <Info icon={FileEdit} label="Hiring Role" value={invitation.role ?? "—"} />
               <Info icon={Timer} label="Created by" value={invitation.createdByName} />
               <Info
                 icon={Timer}
@@ -293,18 +306,59 @@ function InvitationDetailPage() {
             title="Requested verifications"
             description="KairoID will ask the candidate to consent to each of these."
           >
-            <div className="p-5 flex flex-wrap gap-2">
-              {formatVerificationList(invitation.requestedVerifications).map((label) => (
+            <div className="p-5 grid gap-2 sm:grid-cols-2">
+              {invitation.requirements.map((requirement) => (
                 <Badge
-                  key={label}
+                  key={requirement.requirement_type}
                   variant="outline"
-                  className="rounded-full px-3 py-1 text-xs font-normal"
+                  className="justify-between rounded-xl px-3 py-2 text-xs font-normal"
                 >
-                  {label}
+                  <span>
+                    {formatVerificationList([requirement.requirement_type])[0] ??
+                      requirement.requirement_type}
+                  </span>
+                  <span className="text-muted-foreground">
+                    {requirement.mandatory ? "Required" : "Optional"}
+                  </span>
                 </Badge>
               ))}
             </div>
           </SectionCard>
+
+          {invitation.status !== "Draft" ? (
+            <SectionCard
+              title="Candidate progress"
+              description={`${invitation.completedRequirements} of ${invitation.requiredRequirements} required items completed`}
+            >
+              {invitation.requirementProgress.length ? (
+                <div className="divide-y divide-border/60">
+                  {invitation.requirementProgress.map((item) => (
+                    <div
+                      key={item.requirement_type}
+                      className="flex items-center justify-between gap-4 px-5 py-3 text-sm"
+                    >
+                      <div>
+                        <div className="font-medium">
+                          {formatVerificationList([item.requirement_type])[0] ??
+                            item.requirement_type}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {item.mandatory ? "Required" : "Optional"}
+                        </div>
+                      </div>
+                      <Badge variant="outline" className="rounded-full capitalize">
+                        {item.status.replaceAll("_", " ")}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-5 text-sm text-muted-foreground">
+                  Candidate progress will appear when the backend records requirement activity.
+                </div>
+              )}
+            </SectionCard>
+          ) : null}
 
           {invitation.message ? (
             <SectionCard title="Message to candidate">

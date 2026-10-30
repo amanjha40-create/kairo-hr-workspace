@@ -155,9 +155,14 @@ vi.mock("@/components/app/access/PermissionDenied", () => ({
   PermissionDenied: ({ message }: { message: string }) => <div>{message}</div>,
 }));
 
+vi.mock("@/components/app/OrganizationRolesCard", () => ({
+  OrganizationRolesCard: () => <div>hiring-roles</div>,
+}));
+
 vi.mock("@/lib/dashboard-context", () => ({
   useDashboard: () => ({
     setInviteOpen: setInviteOpenSpy,
+    openInvitationDraft: vi.fn(),
     search: "",
     setSearch: setSearchSpy,
   }),
@@ -213,7 +218,16 @@ describe("Trust Invitations list page", () => {
     render(<InvitationsPage />);
 
     expect(screen.getByText("No invitations yet")).toBeInTheDocument();
-    expect(screen.getAllByText("Invite Candidate")).toHaveLength(2);
+    expect(screen.getAllByText("New Invitation")).toHaveLength(2);
+  });
+
+  it("opens a fresh invitation independently of existing drafts", () => {
+    listQueryState.data = [makeTrustInvitationRecord({ status: "Draft", backendStatus: "draft" })];
+
+    render(<InvitationsPage />);
+    fireEvent.click(screen.getByText("New Invitation"));
+
+    expect(setInviteOpenSpy).toHaveBeenCalledWith(true);
   });
 
   it("renders backend invitation rows when data is available", () => {

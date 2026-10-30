@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { InvitationPill } from "@/components/app/workspace-pills";
 import { PermissionDenied } from "@/components/app/access/PermissionDenied";
+import { OrganizationRolesCard } from "@/components/app/OrganizationRolesCard";
 import { useDashboard } from "@/lib/dashboard-context";
 import { useAccess } from "@/lib/access-context";
 import {
@@ -86,8 +87,8 @@ export const Route = createFileRoute("/app/invitations")({
 });
 
 function InvitationsPage() {
-  const { setInviteOpen, search, setSearch } = useDashboard();
-  const { org, can } = useAccess();
+  const { setInviteOpen, openInvitationDraft, search, setSearch } = useDashboard();
+  const { org, can, membershipRole } = useAccess();
   const canInvite = can("invite_candidate");
   const canModify = can("modify_invitation");
   const pathname = useRouterState({ select: (state) => state.location.pathname });
@@ -220,7 +221,7 @@ function InvitationsPage() {
               className="btn-premium rounded-xl"
               size="sm"
             >
-              <MailPlus className="h-4 w-4 mr-1.5" /> Invite Candidate
+              <MailPlus className="h-4 w-4 mr-1.5" /> New Invitation
             </Button>
           ) : null
         }
@@ -256,6 +257,14 @@ function InvitationsPage() {
         <StatCard label="Expiring Soon" value={counts.expiring} icon={Timer} tone="warning" />
       </div>
 
+      <div className="mb-6">
+        <OrganizationRolesCard
+          orgPublicId={org.publicId}
+          canCreate={canInvite}
+          canManage={membershipRole === "owner" || membershipRole === "admin"}
+        />
+      </div>
+
       <div className="flex flex-wrap items-center gap-2 mb-4">
         <div className="relative flex-1 min-w-[220px] max-w-sm">
           <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -275,7 +284,17 @@ function InvitationsPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All statuses</SelectItem>
-            {["Draft", "Sent", "Opened", "Accepted", "Expired", "Cancelled"].map((status) => (
+            {[
+              "Draft",
+              "Sent",
+              "Opened",
+              "Accepted",
+              "In progress",
+              "Completed",
+              "Declined",
+              "Expired",
+              "Cancelled",
+            ].map((status) => (
               <SelectItem key={status} value={status}>
                 {status}
               </SelectItem>
@@ -333,7 +352,7 @@ function InvitationsPage() {
             }
             action={
               canInvite
-                ? { label: "Invite Candidate", onClick: () => setInviteOpen(true) }
+                ? { label: "New Invitation", onClick: () => setInviteOpen(true) }
                 : undefined
             }
           />
@@ -461,6 +480,13 @@ function InvitationsPage() {
                                   <ChevronRight className="h-3.5 w-3.5 mr-2" /> View invitation
                                 </Link>
                               </DropdownMenuItem>
+                              {invitation.status === "Draft" ? (
+                                <DropdownMenuItem
+                                  onClick={() => openInvitationDraft(invitation.id)}
+                                >
+                                  Edit draft
+                                </DropdownMenuItem>
+                              ) : null}
                               <DropdownMenuItem onClick={() => void copyLink(invitation.id)}>
                                 <Copy className="h-3.5 w-3.5 mr-2" /> Copy invitation link
                               </DropdownMenuItem>
@@ -501,7 +527,7 @@ function InvitationsPage() {
                                     onClick={() =>
                                       void handleMutation(
                                         () => resendMutation.mutateAsync(invitation.id),
-                                        "Reminder sent",
+                                        "Reminder email sent",
                                         "We couldn't resend this invitation.",
                                       )
                                     }

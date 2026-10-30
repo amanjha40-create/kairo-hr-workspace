@@ -8,8 +8,10 @@ import {
   listTrustInvitations,
   resendTrustInvitation,
   sendTrustInvitation,
+  updateTrustInvitationDraft,
   type CreateTrustInvitationPayload,
   type TrustInvitationListParams,
+  type UpdateTrustInvitationDraftPayload,
 } from "@/lib/api/trust-invitations";
 import {
   mapInvitationCreateResult,
@@ -126,6 +128,23 @@ export function useSendTrustInvitationMutation(orgPublicId: string | undefined) 
   return useMutation({
     mutationFn: async (invitationPublicId: string) =>
       mapInvitationDetail(await sendTrustInvitation(invitationPublicId)),
+    onSuccess: async (invitation) => {
+      await invalidateTrustInvitationQueries(queryClient, orgPublicId, invitation.id);
+    },
+  });
+}
+
+export function useUpdateTrustInvitationDraftMutation(orgPublicId: string | undefined) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      invitationPublicId,
+      payload,
+    }: {
+      invitationPublicId: string;
+      payload: UpdateTrustInvitationDraftPayload;
+    }) => mapInvitationDetail(await updateTrustInvitationDraft(invitationPublicId, payload)),
     onSuccess: async (invitation) => {
       await invalidateTrustInvitationQueries(queryClient, orgPublicId, invitation.id);
     },

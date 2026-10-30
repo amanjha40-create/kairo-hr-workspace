@@ -10,8 +10,10 @@ import {
   restoreOrganizationMember,
   suspendOrganizationMember,
   transferOrganizationOwnership,
+  updateOrganizationInvitation,
   updateOrganizationMember,
   type BackendOrganizationInvitationCreatePayload,
+  type BackendOrganizationInvitationUpdatePayload,
   type BackendOrganizationMemberSuspendPayload,
   type BackendOrganizationMemberUpdatePayload,
 } from "@/lib/api/organization-members";
@@ -81,6 +83,23 @@ export function useCreateOrganizationInvitationMutation(orgPublicId: string | un
     onSuccess: async () => {
       const currentOrgPublicId = requireOrgPublicId(orgPublicId);
       await invalidateTeamQueries(queryClient, currentOrgPublicId);
+    },
+  });
+}
+
+export function useUpdateOrganizationInvitationMutation(orgPublicId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      invitationPublicId,
+      payload,
+    }: {
+      invitationPublicId: string;
+      payload: BackendOrganizationInvitationUpdatePayload;
+    }) =>
+      updateOrganizationInvitation(requireOrgPublicId(orgPublicId), invitationPublicId, payload),
+    onSuccess: async () => {
+      await invalidateTeamQueries(queryClient, requireOrgPublicId(orgPublicId));
     },
   });
 }

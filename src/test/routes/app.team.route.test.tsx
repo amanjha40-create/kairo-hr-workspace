@@ -12,15 +12,16 @@ const removeSpy = vi.fn();
 const transferSpy = vi.fn();
 const resendSpy = vi.fn();
 const cancelSpy = vi.fn();
+const updateInvitationSpy = vi.fn();
 const toastSuccessSpy = vi.fn();
 const toastErrorSpy = vi.fn();
 
 const accessState: {
-  org: { publicId: string } | null;
+  org: { publicId: string; name: string } | null;
   role: string;
   can: (action: string) => boolean;
 } = {
-  org: { publicId: "org_123" },
+  org: { publicId: "org_123", name: "Acme Limited" },
   role: "Owner",
   can: (action: string) => action === "manage_team" || action === "transfer_ownership",
 };
@@ -61,6 +62,8 @@ const invitationsQueryState = {
       public_id: "invite_1",
       organization_public_id: "org_123",
       invitee_email: "devika@acme.co",
+      invitee_name: "Devika Rao",
+      personal_message: "Welcome to the hiring team.",
       invitee_user_id: null,
       role: "member",
       status: "pending",
@@ -301,6 +304,10 @@ vi.mock("@/lib/queries/team", () => ({
     mutateAsync: cancelSpy,
     isPending: false,
   }),
+  useUpdateOrganizationInvitationMutation: () => ({
+    mutateAsync: updateInvitationSpy,
+    isPending: false,
+  }),
 }));
 
 vi.mock("sonner", () => ({
@@ -343,6 +350,8 @@ const defaultInvitations = [
     public_id: "invite_1",
     organization_public_id: "org_123",
     invitee_email: "devika@acme.co",
+    invitee_name: "Devika Rao",
+    personal_message: "Welcome to the hiring team.",
     invitee_user_id: null,
     role: "member",
     status: "pending",
@@ -372,9 +381,11 @@ describe("Team page", () => {
     resendSpy.mockReset();
     resendSpy.mockResolvedValue({ last_sent_at: "2026-10-18T11:00:00Z" });
     cancelSpy.mockReset();
+    updateInvitationSpy.mockReset();
+    updateInvitationSpy.mockResolvedValue({ last_sent_at: "2026-10-18T10:00:00Z" });
     toastSuccessSpy.mockReset();
     toastErrorSpy.mockReset();
-    accessState.org = { publicId: "org_123" };
+    accessState.org = { publicId: "org_123", name: "Acme Limited" };
     accessState.role = "Owner";
     accessState.can = (action: string) =>
       action === "manage_team" || action === "transfer_ownership";
@@ -418,14 +429,24 @@ describe("Team page", () => {
     render(<TeamPage />);
 
     fireEvent.click(screen.getByText("Invite team member"));
+    fireEvent.change(screen.getByLabelText("Alex Doe"), {
+      target: { value: "Alex Morgan" },
+    });
     fireEvent.change(screen.getByLabelText("alex@company.com"), {
       target: { value: "alex@company.com" },
     });
+    fireEvent.change(
+      screen.getByLabelText("Welcome to the team — looking forward to working together."),
+      { target: { value: "Welcome to Acme's hiring team." } },
+    );
+    expect(screen.getByText(/external email domain/i)).toBeInTheDocument();
     fireEvent.click(screen.getByText("Send team invitation"));
 
     await waitFor(() => {
       expect(inviteMutationSpy).toHaveBeenCalledWith({
         invitee_email: "alex@company.com",
+        invitee_name: "Alex Morgan",
+        personal_message: "Welcome to Acme's hiring team.",
         role: "member",
       });
     });
@@ -441,6 +462,30 @@ describe("Team page", () => {
     expect(toastSuccessSpy).toHaveBeenCalledWith(
       "Invitation validity refreshed for devika@acme.co",
     );
+  });
+
+  it("reopens and retains editable invitee name and personal message", async () => {
+    render(<TeamPage />);
+    fireEvent.click(screen.getAllByText("Edit invitation details")[0]!);
+
+    expect(screen.getByDisplayValue("Devika Rao")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Welcome to the hiring team.")).toBeInTheDocument();
+    fireEvent.change(screen.getByDisplayValue("Welcome to the hiring team."), {
+      target: { value: "Updated welcome message." },
+    });
+    fireEvent.click(screen.getByText("Save invitation details"));
+
+    await waitFor(() =>
+      expect(updateInvitationSpy).toHaveBeenCalledWith({
+        invitationPublicId: "invite_1",
+        payload: {
+          invitee_name: "Devika Rao",
+          personal_message: "Updated welcome message.",
+        },
+      }),
+    );
+    expect(screen.getByText("Invitation updated")).toBeInTheDocument();
+    expect(screen.getByText("Done")).toBeInTheDocument();
   });
 
   it("shows permission denied when team access is unavailable", () => {

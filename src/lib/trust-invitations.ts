@@ -10,6 +10,8 @@ import type {
   BackendTrustInvitationSummaryResponse,
   BackendTrustInvitationTimelineEvent,
   BackendTrustInvitationVerificationType,
+  BackendTrustInvitationRequirement,
+  BackendTrustInvitationRequirementProgress,
 } from "@/lib/api/trust-invitations";
 
 export type VerificationTypeKey = BackendTrustInvitationVerificationType;
@@ -44,6 +46,11 @@ export const VERIFICATION_TYPES: Array<{
     label: "Professional Reference",
     description: "Manager or colleague references.",
   },
+  {
+    key: "permanent_address",
+    label: "Permanent Address",
+    description: "Candidate-provided permanent address and supported verification evidence.",
+  },
 ];
 
 export const PURPOSE_ROLL = [
@@ -76,6 +83,11 @@ export interface TrustInvitationRecord {
   roleId?: string;
   role?: string;
   requestedVerifications: VerificationTypeKey[];
+  requirements: BackendTrustInvitationRequirement[];
+  requirementProgress: BackendTrustInvitationRequirementProgress[];
+  completedRequirements: number;
+  requiredRequirements: number;
+  lifecycleState: string;
   message?: string;
   status: InvitationStatus;
   backendStatus: BackendTrustInvitationStatus;
@@ -88,6 +100,8 @@ export interface TrustInvitationRecord {
   sentAt?: string;
   openedAt?: string;
   acceptedAt?: string;
+  declinedAt?: string;
+  completedAt?: string;
   cancelledAt?: string;
   relatedVerificationRequestPublicId?: string;
   createdAt: string;
@@ -114,6 +128,9 @@ const TIMELINE_LABELS: Record<BackendTrustInvitationEventType, string> = {
   resent: "Reminder sent",
   opened: "Invitation opened",
   accepted: "Invitation accepted",
+  declined: "Invitation declined",
+  updated: "Draft updated",
+  completed: "Invitation completed",
   cancelled: "Invitation cancelled",
   expired: "Invitation expired",
   delivery_failed: "Delivery failed",
@@ -127,9 +144,18 @@ export function getVerificationLabel(value: VerificationTypeKey) {
 export function mapBackendInvitationStatus(
   status: BackendTrustInvitationStatus,
   deliveryState: BackendTrustInvitationDeliveryState,
+  lifecycleState?: string,
+  completedRequirements = 0,
+  requiredRequirements = 0,
 ): InvitationStatus {
   if (status === "draft") return "Draft";
-  if (status === "accepted") return "Accepted";
+  if (lifecycleState === "completed") return "Completed";
+  if (lifecycleState === "declined") return "Declined";
+  if (status === "accepted") {
+    return completedRequirements > 0 && completedRequirements < requiredRequirements
+      ? "In progress"
+      : "Accepted";
+  }
   if (status === "cancelled") return "Cancelled";
   if (status === "expired") return "Expired";
   return deliveryState === "opened" ? "Opened" : "Sent";
@@ -179,15 +205,36 @@ function mapInvitationBase(
     id: invitation.public_id,
     organizationPublicId: invitation.organization_public_id,
     candidateName: invitation.subject_name,
-    candidateEmail: invitation.subject_email,
+    candidateEmail: invitation.subject_email ?? "Email unavailable",
     candidatePhone: invitation.subject_phone ?? undefined,
     candidateInitials: buildInitials(invitation.subject_name),
     purpose: invitation.purpose ?? undefined,
     roleId: invitation.role_id ?? undefined,
     role: invitation.role ?? undefined,
     requestedVerifications: invitation.requested_verification_types,
+    requirements:
+      invitation.requirements_snapshot?.map((requirement) => ({
+        requirement_type: requirement.type,
+        mandatory: requirement.mandatory,
+        configuration: requirement.configuration ?? {},
+      })) ??
+      invitation.requested_verification_types.map((requirementType) => ({
+        requirement_type: requirementType,
+        mandatory: true,
+        configuration: {},
+      })),
+    requirementProgress: invitation.requirement_progress ?? [],
+    completedRequirements: invitation.completed_requirements ?? 0,
+    requiredRequirements: invitation.required_requirements ?? 0,
+    lifecycleState: invitation.lifecycle_state ?? invitation.status,
     message: invitation.message ?? undefined,
-    status: mapBackendInvitationStatus(invitation.status, invitation.delivery_state),
+    status: mapBackendInvitationStatus(
+      invitation.status,
+      invitation.delivery_state,
+      invitation.lifecycle_state,
+      invitation.completed_requirements,
+      invitation.required_requirements,
+    ),
     backendStatus: invitation.status,
     deliveryState: invitation.delivery_state,
     deliveryLabel: mapDeliveryStateLabel(invitation.delivery_state),
@@ -198,6 +245,8 @@ function mapInvitationBase(
     sentAt: invitation.sent_at ?? undefined,
     openedAt: invitation.opened_at ?? undefined,
     acceptedAt: invitation.accepted_at ?? undefined,
+    declinedAt: invitation.declined_at ?? undefined,
+    completedAt: invitation.completed_at ?? undefined,
     cancelledAt: invitation.cancelled_at ?? undefined,
     relatedVerificationRequestPublicId:
       invitation.related_verification_request_public_id ?? undefined,
@@ -257,6 +306,8 @@ export function mapUiStatusToBackendFilter(status: string) {
     case "Opened":
       return "pending" as const;
     case "Accepted":
+    case "In progress":
+    case "Completed":
       return "accepted" as const;
     case "Cancelled":
       return "cancelled" as const;

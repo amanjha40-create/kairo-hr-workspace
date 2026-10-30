@@ -18,6 +18,9 @@ export type InvitationStatus =
   | "Sent"
   | "Opened"
   | "Accepted"
+  | "In progress"
+  | "Completed"
+  | "Declined"
   | "Expired"
   | "Cancelled";
 

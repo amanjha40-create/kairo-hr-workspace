@@ -5,6 +5,9 @@ interface Ctx {
   setSearch: (s: string) => void;
   inviteOpen: boolean;
   setInviteOpen: (b: boolean) => void;
+  editingInvitationId: string | null;
+  openInvitationDraft: (id: string) => void;
+  clearInvitationDraft: () => void;
 }
 
 const DashboardCtx = createContext<Ctx | null>(null);
@@ -12,6 +15,7 @@ const DashboardCtx = createContext<Ctx | null>(null);
 export function DashboardProvider({ children }: { children: ReactNode }) {
   const [search, setSearch] = useState("");
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [editingInvitationId, setEditingInvitationId] = useState<string | null>(null);
 
   const value = useMemo<Ctx>(
     () => ({
@@ -19,8 +23,14 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       setSearch,
       inviteOpen,
       setInviteOpen,
+      editingInvitationId,
+      openInvitationDraft: (id) => {
+        setEditingInvitationId(id);
+        setInviteOpen(true);
+      },
+      clearInvitationDraft: () => setEditingInvitationId(null),
     }),
-    [search, inviteOpen],
+    [search, inviteOpen, editingInvitationId],
   );
 
   return <DashboardCtx.Provider value={value}>{children}</DashboardCtx.Provider>;

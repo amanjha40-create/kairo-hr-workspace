@@ -8,7 +8,10 @@ import { Button } from "@/components/ui/button";
 import { acceptTeamInvitationByToken, getTeamInvitationByToken } from "@/lib/api/hr-v2";
 import { authHref } from "@/lib/auth-return";
 import { useAuth } from "@/lib/auth-context";
-import { getTeamInvitationErrorState } from "@/lib/team-invitation-acceptance";
+import {
+  getTeamInvitationDestination,
+  getTeamInvitationErrorState,
+} from "@/lib/team-invitation-acceptance";
 
 const invitationSearch = z.object({ token: fallback(z.string(), "").default("") });
 
@@ -64,7 +67,11 @@ function TeamInvitationAcceptancePage() {
           <CheckCircle2 className="mx-auto h-12 w-12 text-success" />
           <Button
             className="btn-premium w-full rounded-xl"
-            onClick={() => window.location.assign("/app")}
+            onClick={() =>
+              window.location.assign(
+                getTeamInvitationDestination(accept.data.requires_organization_setup),
+              )
+            }
           >
             Open HR workspace
           </Button>
@@ -86,6 +93,20 @@ function TeamInvitationAcceptancePage() {
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
             This invitation is bound to the recipient email and can be used only once.
+          </p>
+          {lookup.data?.invitee_name ? (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Invitation for {lookup.data.invitee_name}
+            </p>
+          ) : null}
+          {lookup.data?.personal_message ? (
+            <blockquote className="mt-3 border-l-2 border-primary/30 pl-3 text-xs text-muted-foreground">
+              {lookup.data.personal_message}
+            </blockquote>
+          ) : null}
+          <p className="mt-3 text-xs text-muted-foreground">
+            Accepting joins the existing organization. You will not be asked to create or configure
+            another company.
           </p>
         </div>
         {acceptError ? (

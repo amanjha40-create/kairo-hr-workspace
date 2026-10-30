@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ComponentType, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { makeTrustInvitationRecord } from "@/test/trust-invitation-fixtures";
@@ -9,6 +9,8 @@ const resendMutationSpy = vi.fn();
 const cancelMutationSpy = vi.fn();
 const deleteMutationSpy = vi.fn();
 const sendMutationSpy = vi.fn();
+const openDraftSpy = vi.fn();
+const toastSuccessSpy = vi.fn();
 
 const accessState: { org: { publicId: string } | null; can: (action: string) => boolean } = {
   org: { publicId: "org_123" },
@@ -48,7 +50,21 @@ vi.mock("@/components/app/primitives", () => ({
       {actions}
     </div>
   ),
-  SectionCard: ({ children }: { children: ReactNode }) => <section>{children}</section>,
+  SectionCard: ({
+    title,
+    description,
+    children,
+  }: {
+    title?: string;
+    description?: string;
+    children: ReactNode;
+  }) => (
+    <section>
+      {title ? <h2>{title}</h2> : null}
+      {description ? <p>{description}</p> : null}
+      {children}
+    </section>
+  ),
   EmptyState: ({
     title,
     description,
@@ -113,6 +129,10 @@ vi.mock("@/lib/access-context", () => ({
   useAccess: () => accessState,
 }));
 
+vi.mock("@/lib/dashboard-context", () => ({
+  useDashboard: () => ({ openInvitationDraft: openDraftSpy }),
+}));
+
 vi.mock("@/lib/queries/trust-invitations", () => ({
   useCancelTrustInvitationMutation: () => ({
     mutateAsync: cancelMutationSpy,
@@ -134,7 +154,7 @@ vi.mock("@/lib/queries/trust-invitations", () => ({
 }));
 
 vi.mock("sonner", () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
+  toast: { success: toastSuccessSpy, error: vi.fn() },
 }));
 
 const { Route } = await import("../../routes/app.invitations.$id");
@@ -148,6 +168,8 @@ describe("Trust Invitation detail page", () => {
     cancelMutationSpy.mockReset();
     deleteMutationSpy.mockReset();
     sendMutationSpy.mockReset();
+    openDraftSpy.mockReset();
+    toastSuccessSpy.mockReset();
     accessState.org = { publicId: "org_123" };
     accessState.can = (action: string) =>
       action === "invite_candidate" || action === "modify_invitation";
@@ -204,14 +226,67 @@ describe("Trust Invitation detail page", () => {
     expect(screen.getAllByText("Invitation sent")).toHaveLength(1);
   });
 
-  it("resends backend invitations from the detail page", () => {
+  it("resends backend invitations with truthful reminder success", async () => {
     detailQueryState.data = makeTrustInvitationRecord({ status: "Sent" });
     resendMutationSpy.mockResolvedValue(detailQueryState.data);
 
     render(<InvitationDetailPage />);
     fireEvent.click(screen.getByText("Send reminder"));
 
-    expect(resendMutationSpy).toHaveBeenCalledWith("ti_123");
+    await waitFor(() => expect(resendMutationSpy).toHaveBeenCalledWith("ti_123"));
+    expect(toastSuccessSpy).toHaveBeenCalledWith("Reminder email sent");
+  });
+
+  it("renders backend acceptance, requirement progress, and timeline once", () => {
+    detailQueryState.data = makeTrustInvitationRecord({
+      status: "In progress",
+      backendStatus: "accepted",
+      lifecycleState: "in_progress",
+      acceptedAt: "2026-07-25T09:00:00.000Z",
+      completedRequirements: 1,
+      requiredRequirements: 2,
+      requirementProgress: [
+        {
+          requirement_type: "identity",
+          mandatory: true,
+          configuration: {},
+          status: "completed",
+          action: null,
+        },
+        {
+          requirement_type: "employment",
+          mandatory: true,
+          configuration: {},
+          status: "action_required",
+          action: "Upload evidence",
+        },
+      ],
+      timeline: [
+        {
+          id: "event_accepted",
+          kind: "accepted",
+          label: "Invitation accepted",
+          actor: "Aman Joshi",
+          at: "2026-07-25T09:00:00.000Z",
+        },
+      ],
+    });
+
+    render(<InvitationDetailPage />);
+
+    expect(screen.getByText("1 of 2 required items completed")).toBeInTheDocument();
+    expect(screen.getByText("completed")).toBeInTheDocument();
+    expect(screen.getByText("action required")).toBeInTheDocument();
+    expect(screen.getAllByText("Invitation accepted")).toHaveLength(1);
+  });
+
+  it("opens backend drafts in the shared draft editor", () => {
+    detailQueryState.data = makeTrustInvitationRecord({ status: "Draft", backendStatus: "draft" });
+
+    render(<InvitationDetailPage />);
+    fireEvent.click(screen.getByText("Edit draft"));
+
+    expect(openDraftSpy).toHaveBeenCalledWith("ti_123");
   });
 
   it("deletes backend drafts from the detail page", () => {

@@ -14,7 +14,8 @@ export type BackendTrustInvitationVerificationType =
   | "employment"
   | "education"
   | "certification"
-  | "professional_reference";
+  | "professional_reference"
+  | "permanent_address";
 
 export type BackendTrustInvitationEventType =
   | "created"
@@ -22,6 +23,9 @@ export type BackendTrustInvitationEventType =
   | "resent"
   | "opened"
   | "accepted"
+  | "declined"
+  | "updated"
+  | "completed"
   | "cancelled"
   | "expired"
   | "delivery_failed"
@@ -41,7 +45,7 @@ export interface BackendTrustInvitationResponse {
   public_id: string;
   organization_public_id: string;
   subject_name: string;
-  subject_email: string;
+  subject_email: string | null;
   subject_phone: string | null;
   purpose: string | null;
   role_id?: string | null;
@@ -62,6 +66,31 @@ export interface BackendTrustInvitationResponse {
   created_at: string;
   updated_at: string;
   verification_preferences_snapshot?: Record<string, unknown>;
+  requirements_snapshot?: BackendTrustInvitationRequirementSnapshot[];
+  requirements_version?: number;
+  lifecycle_state?: string;
+  declined_at?: string | null;
+  completed_at?: string | null;
+  completed_requirements?: number;
+  required_requirements?: number;
+  requirement_progress?: BackendTrustInvitationRequirementProgress[];
+}
+
+export interface BackendTrustInvitationRequirement {
+  requirement_type: BackendTrustInvitationVerificationType;
+  mandatory: boolean;
+  configuration: Record<string, unknown>;
+}
+
+export interface BackendTrustInvitationRequirementSnapshot {
+  type: BackendTrustInvitationVerificationType;
+  mandatory: boolean;
+  configuration: Record<string, unknown>;
+}
+
+export interface BackendTrustInvitationRequirementProgress extends BackendTrustInvitationRequirement {
+  status: "completed" | "action_required" | "needs_review" | "not_started";
+  action: string | null;
 }
 
 export interface BackendTrustInvitationTimelineEvent {
@@ -98,10 +127,22 @@ export interface CreateTrustInvitationPayload {
   purpose?: string;
   role_id?: string;
   requested_verification_types?: BackendTrustInvitationVerificationType[];
+  requirements?: BackendTrustInvitationRequirement[];
   message?: string;
   delivery_method: BackendTrustInvitationDeliveryMethod;
   mode: "send" | "draft";
   expires_at: string;
+}
+
+export interface UpdateTrustInvitationDraftPayload {
+  subject_name?: string;
+  subject_email?: string;
+  subject_phone?: string | null;
+  purpose?: string | null;
+  role_id?: string | null;
+  requirements?: BackendTrustInvitationRequirement[];
+  message?: string | null;
+  expires_at?: string;
 }
 
 export interface TrustInvitationListParams {
@@ -164,6 +205,16 @@ export function createTrustInvitation(orgPublicId: string, payload: CreateTrustI
       method: "POST",
       body: payload,
     },
+  );
+}
+
+export function updateTrustInvitationDraft(
+  invitationPublicId: string,
+  payload: UpdateTrustInvitationDraftPayload,
+) {
+  return apiRequest<BackendTrustInvitationDetailResponse>(
+    `/api/v1/trust-invitations/by-id/${invitationPublicId}`,
+    { method: "PATCH", body: payload },
   );
 }
 

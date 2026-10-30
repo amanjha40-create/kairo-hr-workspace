@@ -199,4 +199,12 @@ describe("Authenticated app shell", () => {
     expect(screen.getByText("verification-pending-banner")).toBeInTheDocument();
     expect(screen.queryByText("Demo environment · Sample data")).not.toBeInTheDocument();
   });
+
+  it("keeps My Profile and Settings while removing the duplicate My Account entry", () => {
+    render(<AppRoute />);
+
+    expect(screen.getByText("My profile")).toBeInTheDocument();
+    expect(screen.getAllByText("Settings").length).toBeGreaterThan(0);
+    expect(screen.queryByText("My account")).not.toBeInTheDocument();
+  });
 });

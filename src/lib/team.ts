@@ -40,6 +40,7 @@ export interface TeamRecord {
   tokenExpiresAt?: string;
   lastSentAt?: string;
   deliveryFailedAt?: string;
+  personalMessage?: string;
 }
 
 export const TEAM_ROLES: TeamRole[] = ["Owner", "Admin", "Reviewer", "Member"];
@@ -186,7 +187,7 @@ export function buildTeamRecords(
       id: invitation.public_id,
       kind: "invitation",
       invitationPublicId: invitation.public_id,
-      name: invitation.invitee_email,
+      name: invitation.invitee_name?.trim() || invitation.invitee_email,
       email: invitation.invitee_email,
       role: mapBackendTeamRole(invitation.role),
       status: mapInvitationStatus(invitation),
@@ -200,6 +201,7 @@ export function buildTeamRecords(
       tokenExpiresAt: invitation.token_expires_at ?? undefined,
       lastSentAt: invitation.last_sent_at ?? undefined,
       deliveryFailedAt: invitation.delivery_failed_at ?? undefined,
+      personalMessage: invitation.personal_message ?? undefined,
     }));
 
   return [...memberRecords, ...invitationRecords].sort((left, right) =>

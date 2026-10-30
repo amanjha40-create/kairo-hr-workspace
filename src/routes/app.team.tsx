@@ -48,6 +48,7 @@ import {
   Filter,
   Mail,
   MoreHorizontal,
+  Pencil,
   RotateCcw,
   Search,
   SearchX,
@@ -89,6 +90,7 @@ import {
   useRestoreOrganizationMemberMutation,
   useSuspendOrganizationMemberMutation,
   useTransferOrganizationOwnershipMutation,
+  useUpdateOrganizationInvitationMutation,
   useUpdateOrganizationMemberMutation,
 } from "@/lib/queries/team";
 
@@ -145,6 +147,7 @@ function TeamPage() {
   const transferMutation = useTransferOrganizationOwnershipMutation(orgPublicId);
   const resendInvitationMutation = useResendOrganizationInvitationMutation(orgPublicId);
   const cancelInvitationMutation = useCancelOrganizationInvitationMutation(orgPublicId);
+  const updateInvitationMutation = useUpdateOrganizationInvitationMutation(orgPublicId);
 
   const [q, setQ] = useState("");
   const [roleFilter, setRoleFilter] = useState<TeamRole | "all">("all");
@@ -154,6 +157,7 @@ function TeamPage() {
   const [inviteForm, setInviteForm] = useState<InviteFormValue>(DEFAULT_INVITE_FORM);
   const [createdInvitation, setCreatedInvitation] =
     useState<BackendOrganizationInvitationResponse | null>(null);
+  const [editingInvitationId, setEditingInvitationId] = useState<string | null>(null);
   const [roleDialog, setRoleDialog] = useState<RoleDialogState>({
     open: false,
     nextRole: "Member",
@@ -229,7 +233,8 @@ function TeamPage() {
     removeMutation.isPending ||
     transferMutation.isPending ||
     resendInvitationMutation.isPending ||
-    cancelInvitationMutation.isPending;
+    cancelInvitationMutation.isPending ||
+    updateInvitationMutation.isPending;
 
   const loadError = membersQuery.error ?? invitationsQuery.error;
   const isLoading =
@@ -281,6 +286,21 @@ function TeamPage() {
     setInviteForm(DEFAULT_INVITE_FORM);
     setCreatedInvitation(null);
     setInviteStep("form");
+    setEditingInvitationId(null);
+    setInviteOpen(true);
+  };
+
+  const openInvitationEditor = (record: TeamRecord) => {
+    if (!record.invitationPublicId) return;
+    setInviteForm({
+      name: record.name === record.email ? "" : record.name,
+      email: record.email,
+      role: record.role,
+      message: record.personalMessage ?? "",
+    });
+    setEditingInvitationId(record.invitationPublicId);
+    setCreatedInvitation(null);
+    setInviteStep("form");
     setInviteOpen(true);
   };
 
@@ -291,13 +311,29 @@ function TeamPage() {
     }
 
     try {
-      const created = await inviteMutation.mutateAsync({
-        invitee_email: inviteForm.email.trim(),
-        role: mapTeamRoleToBackend(inviteForm.role),
-      });
+      const created = editingInvitationId
+        ? await updateInvitationMutation.mutateAsync({
+            invitationPublicId: editingInvitationId,
+            payload: {
+              invitee_name: inviteForm.name.trim() || null,
+              personal_message: inviteForm.message.trim() || null,
+            },
+          })
+        : await inviteMutation.mutateAsync({
+            invitee_email: inviteForm.email.trim(),
+            invitee_name: inviteForm.name.trim() || null,
+            personal_message: inviteForm.message.trim() || null,
+            role: mapTeamRoleToBackend(inviteForm.role),
+          });
       setCreatedInvitation(created);
       setInviteStep("success");
-      toast.success(created.last_sent_at ? "Team invitation sent" : "Team invitation queued");
+      toast.success(
+        editingInvitationId
+          ? "Invitation details saved"
+          : created.last_sent_at
+            ? "Team invitation sent"
+            : "Team invitation queued",
+      );
     } catch (error) {
       toast.error(getTeamErrorMessage(error, "We couldn't send that team invitation."));
     }
@@ -581,6 +617,7 @@ function TeamPage() {
                           onCancelInvitation={() =>
                             setConfirm({ open: true, kind: "cancel", record })
                           }
+                          onEditInvitation={() => openInvitationEditor(record)}
                           onChangeRole={(nextRole) => handleChangeRole(record, nextRole)}
                           onResendInvitation={() => void handleResendInvitation(record)}
                           onRestore={() => setConfirm({ open: true, kind: "restore", record })}
@@ -617,6 +654,7 @@ function TeamPage() {
                       pending={pending}
                       record={record}
                       onCancelInvitation={() => setConfirm({ open: true, kind: "cancel", record })}
+                      onEditInvitation={() => openInvitationEditor(record)}
                       onChangeRole={(nextRole) => handleChangeRole(record, nextRole)}
                       onResendInvitation={() => void handleResendInvitation(record)}
                       onRestore={() => setConfirm({ open: true, kind: "restore", record })}
@@ -666,6 +704,7 @@ function TeamPage() {
           setInviteOpen(open);
           if (!open) {
             setInviteStep("form");
+            setEditingInvitationId(null);
           }
         }}
       >
@@ -673,9 +712,13 @@ function TeamPage() {
           {inviteStep === "form" ? (
             <>
               <DialogHeader>
-                <DialogTitle>Invite team member</DialogTitle>
+                <DialogTitle>
+                  {editingInvitationId ? "Edit team invitation" : "Invite team member"}
+                </DialogTitle>
                 <DialogDescription>
-                  Send a secure, seven-day, single-use invitation to an email address.
+                  {editingInvitationId
+                    ? "Update the recipient name and personal message for this invitation."
+                    : "Send a secure, seven-day, single-use invitation to an email address."}
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 pt-2">
@@ -687,11 +730,7 @@ function TeamPage() {
                       setInviteForm((current) => ({ ...current, name: event.target.value }))
                     }
                     placeholder="Alex Doe"
-                    disabled
                   />
-                  <p className="text-[11px] text-muted-foreground mt-1.5">
-                    Invitee names aren't currently stored by the backend invitation contract.
-                  </p>
                 </div>
                 <div>
                   <Label className="text-xs text-muted-foreground mb-1.5 block">Work email</Label>
@@ -702,7 +741,13 @@ function TeamPage() {
                       setInviteForm((current) => ({ ...current, email: event.target.value }))
                     }
                     placeholder="alex@company.com"
+                    disabled={Boolean(editingInvitationId)}
                   />
+                  <p className="text-[11px] text-muted-foreground mt-1.5">
+                    Explicit team invitations may use an external email domain. The recipient joins
+                    {org?.name ? ` ${org.name}` : " this existing organization"}; no new company is
+                    created.
+                  </p>
                 </div>
                 <div>
                   <Label className="text-xs text-muted-foreground mb-1.5 block">Role</Label>
@@ -711,6 +756,7 @@ function TeamPage() {
                     onValueChange={(value) =>
                       setInviteForm((current) => ({ ...current, role: value as TeamRole }))
                     }
+                    disabled={Boolean(editingInvitationId)}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -738,11 +784,7 @@ function TeamPage() {
                     }
                     placeholder="Welcome to the team — looking forward to working together."
                     rows={3}
-                    disabled
                   />
-                  <p className="text-[11px] text-muted-foreground mt-1.5">
-                    Personal invite messages aren't supported by the current backend contract yet.
-                  </p>
                 </div>
               </div>
               <DialogFooter className="pt-2">
@@ -756,9 +798,10 @@ function TeamPage() {
                 <Button
                   className="btn-premium rounded-xl"
                   onClick={() => void handleSendInvite()}
-                  disabled={inviteMutation.isPending}
+                  disabled={inviteMutation.isPending || updateInvitationMutation.isPending}
                 >
-                  <Mail className="h-4 w-4 mr-1.5" /> Send team invitation
+                  <Mail className="h-4 w-4 mr-1.5" />
+                  {editingInvitationId ? "Save invitation details" : "Send team invitation"}
                 </Button>
               </DialogFooter>
             </>
@@ -769,12 +812,18 @@ function TeamPage() {
                   <CheckCircle2 className="h-6 w-6 text-success" />
                 </div>
                 <DialogTitle className="text-center">
-                  {createdInvitation?.last_sent_at ? "Invitation sent" : "Invitation queued"}
+                  {editingInvitationId
+                    ? "Invitation updated"
+                    : createdInvitation?.last_sent_at
+                      ? "Invitation sent"
+                      : "Invitation queued"}
                 </DialogTitle>
                 <DialogDescription className="text-center">
-                  {createdInvitation?.delivery_failed_at
-                    ? `Delivery to ${inviteForm.email} failed. Review the invitation state before resending.`
-                    : `A secure invitation for ${inviteForm.email} is pending acceptance.`}
+                  {editingInvitationId
+                    ? `The invitee name and personal message for ${inviteForm.email} were saved.`
+                    : createdInvitation?.delivery_failed_at
+                      ? `Delivery to ${inviteForm.email} failed. Review the invitation state before resending.`
+                      : `A secure invitation for ${inviteForm.email} is pending acceptance.`}
                 </DialogDescription>
               </DialogHeader>
               <DialogFooter className="pt-4 sm:justify-center gap-2">
@@ -788,12 +837,18 @@ function TeamPage() {
                 <Button
                   className="btn-premium rounded-xl"
                   onClick={() => {
+                    if (editingInvitationId) {
+                      setInviteOpen(false);
+                      return;
+                    }
                     setInviteForm(DEFAULT_INVITE_FORM);
                     setCreatedInvitation(null);
+                    setEditingInvitationId(null);
                     setInviteStep("form");
                   }}
                 >
-                  <UserPlus className="h-4 w-4 mr-1.5" /> Invite another member
+                  {editingInvitationId ? null : <UserPlus className="h-4 w-4 mr-1.5" />}
+                  {editingInvitationId ? "Done" : "Invite another member"}
                 </Button>
               </DialogFooter>
             </>
@@ -980,6 +1035,7 @@ function TeamRecordMenu({
   pending,
   onChangeRole,
   onResendInvitation,
+  onEditInvitation,
   onCancelInvitation,
   onSuspend,
   onRestore,
@@ -993,6 +1049,7 @@ function TeamRecordMenu({
   pending: boolean;
   onChangeRole: (role: TeamRole) => void;
   onResendInvitation: () => void;
+  onEditInvitation: () => void;
   onCancelInvitation: () => void;
   onSuspend: () => void;
   onRestore: () => void;
@@ -1081,6 +1138,12 @@ function TeamRecordMenu({
             <DropdownMenuLabel className="text-[11px] uppercase tracking-wider text-muted-foreground">
               Invitation actions
             </DropdownMenuLabel>
+            <DropdownMenuItem
+              disabled={pending || !isActionableInvitation}
+              onClick={onEditInvitation}
+            >
+              <Pencil className="h-3.5 w-3.5 mr-2" /> Edit invitation details
+            </DropdownMenuItem>
             <DropdownMenuItem
               disabled={pending || !isActionableInvitation}
               onClick={onResendInvitation}

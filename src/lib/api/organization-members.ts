@@ -34,6 +34,8 @@ export interface BackendOrganizationInvitationResponse {
   public_id: string;
   organization_public_id: string;
   invitee_email: string;
+  invitee_name?: string | null;
+  personal_message?: string | null;
   invitee_user_id: string | null;
   role: BackendOrganizationMemberRole;
   status: BackendOrganizationInvitationStatus;
@@ -62,7 +64,14 @@ export interface BackendOrganizationMemberSuspendPayload {
 
 export interface BackendOrganizationInvitationCreatePayload {
   invitee_email: string;
+  invitee_name?: string | null;
+  personal_message?: string | null;
   role: BackendOrganizationMemberRole;
+}
+
+export interface BackendOrganizationInvitationUpdatePayload {
+  invitee_name?: string | null;
+  personal_message?: string | null;
 }
 
 export interface BackendOrganizationOwnershipTransferResponse {
@@ -150,6 +159,17 @@ export function createOrganizationInvitation(
       method: "POST",
       body: payload,
     },
+  );
+}
+
+export function updateOrganizationInvitation(
+  orgPublicId: string,
+  invitationPublicId: string,
+  payload: BackendOrganizationInvitationUpdatePayload,
+) {
+  return apiRequest<BackendOrganizationInvitationResponse>(
+    `/api/v1/organizations/${orgPublicId}/invitations/${invitationPublicId}`,
+    { method: "PATCH", body: payload },
   );
 }
 

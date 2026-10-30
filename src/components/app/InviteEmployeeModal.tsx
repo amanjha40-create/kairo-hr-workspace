@@ -34,8 +34,14 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { useCreateTrustInvitationMutation } from "@/lib/queries/trust-invitations";
 import {
+  useCreateTrustInvitationMutation,
+  useSendTrustInvitationMutation,
+  useTrustInvitationDetailQuery,
+  useUpdateTrustInvitationDraftMutation,
+} from "@/lib/queries/trust-invitations";
+import {
+  useCreateOrganizationJobRoleMutation,
   useOrganizationJobRolesQuery,
   useOrganizationVerificationPreferencesQuery,
 } from "@/lib/queries/hr-v2";
@@ -48,17 +54,24 @@ import {
 type Step = 1 | 2 | 3 | 4 | 5 | 6;
 
 export function InviteEmployeeModal() {
-  const { inviteOpen, setInviteOpen } = useDashboard();
-  const { org, can } = useAccess();
+  const { inviteOpen, setInviteOpen, editingInvitationId, clearInvitationDraft } = useDashboard();
+  const { org, can, membershipRole } = useAccess();
   const canInvite = can("invite_candidate");
   const createInvitationMutation = useCreateTrustInvitationMutation(org?.publicId);
+  const updateDraftMutation = useUpdateTrustInvitationDraftMutation(org?.publicId);
+  const sendInvitationMutation = useSendTrustInvitationMutation(org?.publicId);
+  const draftQuery = useTrustInvitationDetailQuery(editingInvitationId ?? undefined);
   const rolesQuery = useOrganizationJobRolesQuery(org?.publicId);
+  const createRoleMutation = useCreateOrganizationJobRoleMutation(org?.publicId);
   const preferencesQuery = useOrganizationVerificationPreferencesQuery(org?.publicId);
   const [step, setStep] = useState<Step>(1);
   const [sentInvitationId, setSentInvitationId] = useState<string | null>(null);
   const [sentInvitationUrl, setSentInvitationUrl] = useState<string | null>(null);
   const [messageEdited, setMessageEdited] = useState(false);
   const [verificationEdited, setVerificationEdited] = useState(false);
+  const [showRoleCreator, setShowRoleCreator] = useState(false);
+  const [newRoleName, setNewRoleName] = useState("");
+  const [newRoleDepartment, setNewRoleDepartment] = useState("");
   const defaultsApplied = useRef(false);
   const [form, setForm] = useState({
     candidateName: "",
@@ -77,10 +90,30 @@ export function InviteEmployeeModal() {
   );
 
   useEffect(() => {
-    if (!inviteOpen || form.roleId || activeRoles.length === 0) return;
+    if (!inviteOpen || editingInvitationId || form.roleId || activeRoles.length === 0) return;
     const role = activeRoles[0];
     setForm((current) => ({ ...current, roleId: role.public_id, purpose: role.name }));
-  }, [activeRoles, form.roleId, inviteOpen]);
+  }, [activeRoles, editingInvitationId, form.roleId, inviteOpen]);
+
+  useEffect(() => {
+    const draft = draftQuery.data;
+    if (!inviteOpen || !editingInvitationId || !draft || draft.status !== "Draft") return;
+    setForm({
+      candidateName: draft.candidateName,
+      candidateEmail: draft.candidateEmail === "Email unavailable" ? "" : draft.candidateEmail,
+      candidatePhone: draft.candidatePhone ?? "",
+      roleId: draft.roleId ?? "",
+      purpose: draft.purpose ?? "",
+      requestedVerifications: draft.requirements.map((item) => item.requirement_type),
+      message: draft.message ?? "",
+      expiresInDays: Math.max(
+        1,
+        Math.ceil((new Date(draft.expiresAt).getTime() - Date.now()) / 86400e3),
+      ),
+    });
+    setVerificationEdited(true);
+    setMessageEdited(true);
+  }, [draftQuery.data, editingInvitationId, inviteOpen]);
 
   useEffect(() => {
     if (!inviteOpen || verificationEdited || defaultsApplied.current || !preferencesQuery.data)
@@ -100,9 +133,15 @@ export function InviteEmployeeModal() {
     setSentInvitationId(null);
     setSentInvitationUrl(null);
     createInvitationMutation.reset();
+    updateDraftMutation.reset();
+    sendInvitationMutation.reset();
     setMessageEdited(false);
     setVerificationEdited(false);
     defaultsApplied.current = false;
+    setShowRoleCreator(false);
+    setNewRoleName("");
+    setNewRoleDepartment("");
+    clearInvitationDraft();
     setForm({
       candidateName: "",
       candidateEmail: "",
@@ -128,22 +167,51 @@ export function InviteEmployeeModal() {
 
   async function submit(action: "send" | "draft") {
     try {
-      const invitation = await createInvitationMutation.mutateAsync({
-        subject_name: form.candidateName.trim(),
-        subject_email: form.candidateEmail.trim(),
-        subject_phone: form.candidatePhone.trim() || undefined,
-        purpose: form.purpose.trim() || undefined,
-        role_id: form.roleId,
-        ...(verificationEdited
-          ? { requested_verification_types: form.requestedVerifications }
-          : {}),
-        message: form.message.trim() || undefined,
-        delivery_method: "email",
-        mode: action,
-        expires_at: new Date(Date.now() + form.expiresInDays * 86400e3).toISOString(),
+      const requirements = form.requestedVerifications.map((requirementType) => {
+        const existing = draftQuery.data?.requirements.find(
+          (item) => item.requirement_type === requirementType,
+        );
+        return (
+          existing ?? {
+            requirement_type: requirementType,
+            mandatory: true,
+            configuration: {},
+          }
+        );
       });
-      setSentInvitationId(invitation.id);
-      setSentInvitationUrl(invitation.invitationUrl ?? null);
+      const expiresAt = new Date(Date.now() + form.expiresInDays * 86400e3).toISOString();
+      const invitation = editingInvitationId
+        ? await updateDraftMutation.mutateAsync({
+            invitationPublicId: editingInvitationId,
+            payload: {
+              subject_name: form.candidateName.trim(),
+              subject_email: form.candidateEmail.trim(),
+              subject_phone: form.candidatePhone.trim() || null,
+              purpose: form.purpose.trim() || null,
+              role_id: form.roleId || null,
+              requirements,
+              message: form.message.trim() || null,
+              expires_at: expiresAt,
+            },
+          })
+        : await createInvitationMutation.mutateAsync({
+            subject_name: form.candidateName.trim(),
+            subject_email: form.candidateEmail.trim(),
+            subject_phone: form.candidatePhone.trim() || undefined,
+            purpose: form.purpose.trim() || undefined,
+            role_id: form.roleId,
+            ...(verificationEdited ? { requirements } : {}),
+            message: form.message.trim() || undefined,
+            delivery_method: "email",
+            mode: action,
+            expires_at: expiresAt,
+          });
+      const finalInvitation =
+        editingInvitationId && action === "send"
+          ? await sendInvitationMutation.mutateAsync(invitation.id)
+          : invitation;
+      setSentInvitationId(finalInvitation.id);
+      setSentInvitationUrl(finalInvitation.invitationUrl ?? null);
       toast.success(action === "send" ? "Invitation sent" : "Draft saved");
       if (action === "send") {
         setStep(6);
@@ -157,6 +225,28 @@ export function InviteEmployeeModal() {
           action === "send" ? "We couldn't send this invitation." : "We couldn't save this draft.",
         ),
       );
+    }
+  }
+
+  async function createHiringRole() {
+    if (!newRoleName.trim()) return;
+    try {
+      const role = await createRoleMutation.mutateAsync({
+        name: newRoleName.trim(),
+        department: newRoleDepartment.trim() || null,
+        mode: "submit",
+      });
+      if (role.status === "active") {
+        setForm((current) => ({ ...current, roleId: role.public_id, purpose: role.name }));
+        toast.success("Hiring Role created and selected");
+      } else {
+        toast.success("Hiring Role proposed for Owner/Admin approval");
+      }
+      setShowRoleCreator(false);
+      setNewRoleName("");
+      setNewRoleDepartment("");
+    } catch (error) {
+      toast.error(getTrustInvitationErrorMessage(error, "We couldn't create that Hiring Role."));
     }
   }
 
@@ -181,7 +271,9 @@ export function InviteEmployeeModal() {
       <DialogContent className="sm:max-w-2xl rounded-2xl p-0 overflow-hidden">
         <div className="px-6 pt-6 pb-4 border-b border-border/60 bg-gradient-to-br from-primary/5 to-transparent">
           <DialogHeader className="text-left space-y-1">
-            <DialogTitle className="text-xl tracking-tight">Invite Candidate</DialogTitle>
+            <DialogTitle className="text-xl tracking-tight">
+              {editingInvitationId ? "Edit Invitation Draft" : "Invite Candidate"}
+            </DialogTitle>
             <DialogDescription>
               Send a consent-first invitation. The candidate controls what to share.
             </DialogDescription>
@@ -209,13 +301,13 @@ export function InviteEmployeeModal() {
               </AlertDescription>
             </Alert>
           ) : null}
-          {createInvitationMutation.isError ? (
+          {createInvitationMutation.isError || updateDraftMutation.isError ? (
             <Alert variant="destructive" className="mb-4">
               <MailPlus className="h-4 w-4" />
               <AlertTitle>We couldn't save this invitation</AlertTitle>
               <AlertDescription>
                 {getTrustInvitationErrorMessage(
-                  createInvitationMutation.error,
+                  createInvitationMutation.error ?? updateDraftMutation.error,
                   "Please review the form and try again.",
                 )}
               </AlertDescription>
@@ -282,6 +374,54 @@ export function InviteEmployeeModal() {
                       </SelectContent>
                     </Select>
                   </Field>
+                  <div className="sm:col-span-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="rounded-xl"
+                      onClick={() => setShowRoleCreator((current) => !current)}
+                    >
+                      {showRoleCreator ? "Cancel new role" : "+ Create New Role"}
+                    </Button>
+                  </div>
+                  {showRoleCreator ? (
+                    <div className="sm:col-span-2 grid gap-3 rounded-xl border border-border/60 p-4 sm:grid-cols-2">
+                      <Field label="New Hiring Role" required>
+                        <Input
+                          value={newRoleName}
+                          onChange={(event) => setNewRoleName(event.target.value)}
+                          placeholder="Senior Software Engineer"
+                        />
+                      </Field>
+                      <Field label="Department">
+                        <Input
+                          value={newRoleDepartment}
+                          onChange={(event) => setNewRoleDepartment(event.target.value)}
+                          placeholder="Engineering"
+                        />
+                      </Field>
+                      <div className="sm:col-span-2 flex items-center justify-between gap-3">
+                        <p className="text-xs text-muted-foreground">
+                          {membershipRole === "owner" || membershipRole === "admin"
+                            ? "This role becomes Active immediately."
+                            : "This proposal remains Pending approval and cannot be selected until approved."}
+                        </p>
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="rounded-xl"
+                          disabled={!newRoleName.trim() || createRoleMutation.isPending}
+                          onClick={() => void createHiringRole()}
+                        >
+                          {createRoleMutation.isPending ? (
+                            <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                          ) : null}
+                          Create role
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
                   {activeRoles.length === 0 && !rolesQuery.isPending ? (
                     <div className="sm:col-span-2 rounded-xl border border-warning/30 bg-warning/10 p-3 text-xs text-muted-foreground">
                       Create an active organization job role in the People role area before sending
@@ -495,11 +635,12 @@ export function InviteEmployeeModal() {
                       !form.candidateName ||
                       !form.candidateEmail ||
                       createInvitationMutation.isPending ||
+                      updateDraftMutation.isPending ||
                       !canInvite
                     }
                     onClick={() => void submit("draft")}
                   >
-                    {createInvitationMutation.isPending ? (
+                    {createInvitationMutation.isPending || updateDraftMutation.isPending ? (
                       <Loader2 className="h-4 w-4 mr-1 animate-spin" />
                     ) : null}
                     Save as draft
@@ -517,9 +658,16 @@ export function InviteEmployeeModal() {
                   <Button
                     className="btn-premium rounded-xl"
                     onClick={() => void submit("send")}
-                    disabled={createInvitationMutation.isPending || !canInvite}
+                    disabled={
+                      createInvitationMutation.isPending ||
+                      updateDraftMutation.isPending ||
+                      sendInvitationMutation.isPending ||
+                      !canInvite
+                    }
                   >
-                    {createInvitationMutation.isPending ? (
+                    {createInvitationMutation.isPending ||
+                    updateDraftMutation.isPending ||
+                    sendInvitationMutation.isPending ? (
                       <Loader2 className="h-4 w-4 mr-1 animate-spin" />
                     ) : (
                       <MailPlus className="h-4 w-4 mr-1" />

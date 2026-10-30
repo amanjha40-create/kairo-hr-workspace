@@ -5,6 +5,10 @@ export interface TeamInvitationErrorState {
   body: string;
 }
 
+export function getTeamInvitationDestination(requiresOrganizationSetup: boolean) {
+  return requiresOrganizationSetup ? "/app/setup" : "/app";
+}
+
 export function getTeamInvitationErrorState(error: unknown): TeamInvitationErrorState {
   if (!(error instanceof ApiError)) {
     return { title: "Invitation unavailable", body: "Please try again in a moment." };

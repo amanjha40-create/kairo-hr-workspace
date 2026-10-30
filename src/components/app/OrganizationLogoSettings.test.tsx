@@ -4,6 +4,7 @@ import { OrganizationLogoSettings } from "@/components/app/OrganizationLogoSetti
 
 const uploadSpy = vi.fn();
 const removeSpy = vi.fn();
+const { toastSuccessSpy } = vi.hoisted(() => ({ toastSuccessSpy: vi.fn() }));
 const uploadMutationState = { isPending: false, error: null as unknown };
 const removeMutationState = { isPending: false, error: null as unknown };
 const logoQuery: {
@@ -30,10 +31,15 @@ vi.mock("@/lib/queries/hr-v2", () => ({
   }),
 }));
 
+vi.mock("sonner", () => ({
+  toast: { success: toastSuccessSpy, error: vi.fn() },
+}));
+
 describe("OrganizationLogoSettings", () => {
   beforeEach(() => {
     uploadSpy.mockReset();
     removeSpy.mockReset();
+    toastSuccessSpy.mockReset();
     uploadSpy.mockResolvedValue({ has_logo: true });
     removeSpy.mockResolvedValue({ has_logo: false });
     logoQuery.data = { has_logo: false, display_url: null };
@@ -58,6 +64,8 @@ describe("OrganizationLogoSettings", () => {
       target: { files: [new File(["png"], "logo.png", { type: "image/png" })] },
     });
     await waitFor(() => expect(uploadSpy).toHaveBeenCalledTimes(1));
+    expect(toastSuccessSpy).toHaveBeenCalledWith("Organization logo uploaded");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("supports removing the current logo", async () => {
@@ -89,5 +97,14 @@ describe("OrganizationLogoSettings", () => {
     rerender(<OrganizationLogoSettings orgPublicId="org-1" canManage={false} />);
     expect(screen.getByText(/only organization owners and admins/i)).toBeInTheDocument();
     expect(screen.getByText("Upload logo")).toBeDisabled();
+  });
+
+  it("keeps genuine upload failures visible", () => {
+    uploadMutationState.error = new Error("Upload failed safely");
+
+    render(<OrganizationLogoSettings orgPublicId="org-1" canManage />);
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Upload failed safely");
+    expect(toastSuccessSpy).not.toHaveBeenCalled();
   });
 });

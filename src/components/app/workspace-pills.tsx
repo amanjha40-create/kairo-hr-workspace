@@ -75,6 +75,9 @@ const INV_TONE: Record<InvitationStatus, string> = {
   Sent: "bg-info/15 text-info-foreground border-info/25",
   Opened: "bg-warning/15 text-warning-foreground border-warning/25",
   Accepted: "bg-success/15 text-success border-success/25",
+  "In progress": "bg-info/15 text-info-foreground border-info/25",
+  Completed: "bg-success/15 text-success border-success/25",
+  Declined: "bg-destructive/10 text-destructive border-destructive/25",
   Expired: "bg-destructive/10 text-destructive border-destructive/25",
   Cancelled: "bg-foreground/[0.06] text-muted-foreground border-border/60",
 };
@@ -84,6 +87,9 @@ const INV_ICON: Record<InvitationStatus, ReactNode> = {
   Sent: <MailPlus className="h-3 w-3" />,
   Opened: <MailOpen className="h-3 w-3" />,
   Accepted: <MailCheck className="h-3 w-3" />,
+  "In progress": <Loader2 className="h-3 w-3" />,
+  Completed: <CheckCircle2 className="h-3 w-3" />,
+  Declined: <MailX className="h-3 w-3" />,
   Expired: <MailX className="h-3 w-3" />,
   Cancelled: <Ban className="h-3 w-3" />,
 };

@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   acceptTeamInvitationByToken,
+  approveOrganizationJobRole,
+  createFormerEmployeeCorrection,
   createOrganizationJobRole,
   deactivateOrganizationJobRole,
   getOrganizationLogo,
@@ -9,6 +11,7 @@ import {
   getTeamInvitationByToken,
   listOrganizationJobRoles,
   removeOrganizationLogo,
+  rejectOrganizationJobRole,
   updateEmployeeLifecycle,
   updateEmploymentProfile,
   updateOrganizationJobRole,
@@ -18,6 +21,7 @@ import {
 import {
   createOrganizationInvitation,
   resendOrganizationInvitation,
+  updateOrganizationInvitation,
 } from "@/lib/api/organization-members";
 
 const fetchSpy = vi.fn();
@@ -100,6 +104,29 @@ describe("HR V2 certified API contracts", () => {
     ]);
   });
 
+  it("uses canonical Hiring Role decisions and audited former-employee corrections", async () => {
+    fetchSpy
+      .mockResolvedValueOnce(jsonResponse({ public_id: "role-1", status: "active" }))
+      .mockResolvedValueOnce(jsonResponse({ public_id: "role-2", status: "rejected" }))
+      .mockResolvedValueOnce(jsonResponse({ public_id: "correction-1", status: "pending" }, 201));
+
+    await approveOrganizationJobRole("org-1", "role-1");
+    await rejectOrganizationJobRole("org-1", "role-2", "Duplicate proposal");
+    await createFormerEmployeeCorrection("org-1", "person-1", {
+      proposed_changes: { department: "Platform" },
+      reason: "Correct historical department",
+    });
+
+    expect(fetchSpy.mock.calls.map((call) => [call[0], call[1]?.method])).toEqual([
+      ["http://localhost:8000/api/v1/organizations/org-1/job-roles/role-1/approve", "POST"],
+      ["http://localhost:8000/api/v1/organizations/org-1/job-roles/role-2/reject", "POST"],
+      ["http://localhost:8000/api/v1/organizations/org-1/people/person-1/corrections", "POST"],
+    ]);
+    expect(JSON.parse(String(fetchSpy.mock.calls[1]?.[1]?.body))).toEqual({
+      reason: "Duplicate proposal",
+    });
+  });
+
   it("uses presigned upload then confirms without sending a caller-owned object key", async () => {
     fetchSpy
       .mockResolvedValueOnce(
@@ -158,6 +185,7 @@ describe("HR V2 certified API contracts", () => {
       .mockResolvedValueOnce(jsonResponse({ has_logo: false }))
       .mockResolvedValueOnce(jsonResponse({ version: 1, checks: {}, reference_count: 0 }))
       .mockResolvedValueOnce(jsonResponse({ public_id: "invite-1" }, 201))
+      .mockResolvedValueOnce(jsonResponse({ public_id: "invite-1", invitee_name: "Alex" }))
       .mockResolvedValueOnce(jsonResponse({ public_id: "invite-1", last_sent_at: "now" }));
 
     await getOrganizationLogo("org-1");
@@ -165,7 +193,13 @@ describe("HR V2 certified API contracts", () => {
     await getOrganizationVerificationPreferences("org-1");
     await createOrganizationInvitation("org-1", {
       invitee_email: "recipient@example.com",
+      invitee_name: "Alex",
+      personal_message: "Welcome to the team.",
       role: "reviewer",
+    });
+    await updateOrganizationInvitation("org-1", "invite-1", {
+      invitee_name: "Alex Morgan",
+      personal_message: "Updated welcome.",
     });
     await resendOrganizationInvitation("org-1", "invite-1");
 
@@ -174,6 +208,7 @@ describe("HR V2 certified API contracts", () => {
       ["http://localhost:8000/api/v1/organizations/org-1/logo", "DELETE"],
       ["http://localhost:8000/api/v1/organizations/org-1/verification-preferences", "GET"],
       ["http://localhost:8000/api/v1/organizations/org-1/invitations", "POST"],
+      ["http://localhost:8000/api/v1/organizations/org-1/invitations/invite-1", "PATCH"],
       ["http://localhost:8000/api/v1/organizations/org-1/invitations/invite-1/resend", "POST"],
     ]);
   });

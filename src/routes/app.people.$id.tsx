@@ -50,6 +50,7 @@ import { getEmployeeRosterMetadata } from "@/lib/organization-roster";
 import {
   useEmployeeLifecycleMutation,
   useEmploymentProfileMutation,
+  useFormerEmployeeCorrectionMutation,
   useOrganizationJobRolesQuery,
 } from "@/lib/queries/hr-v2";
 import {
@@ -126,15 +127,20 @@ function PersonDetail() {
   const deleteNoteMutation = useDeleteOrganizationPersonNoteMutation();
   const lifecycleMutation = useEmployeeLifecycleMutation();
   const profileMutation = useEmploymentProfileMutation();
+  const correctionMutation = useFormerEmployeeCorrectionMutation();
   const rolesQuery = useOrganizationJobRolesQuery(org?.publicId);
   const [activeTab, setActiveTab] = useState("summary");
   const [lifecycleOpen, setLifecycleOpen] = useState(false);
   const [lastWorkingDay, setLastWorkingDay] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
   const [originalRoleId, setOriginalRoleId] = useState<string | null>(null);
+  const [originalDepartment, setOriginalDepartment] = useState("");
+  const [originalJoiningDate, setOriginalJoiningDate] = useState("");
+  const [originalLastWorkingDay, setOriginalLastWorkingDay] = useState("");
   const [roleId, setRoleId] = useState("unassigned");
   const [department, setDepartment] = useState("");
   const [joiningDate, setJoiningDate] = useState("");
+  const [correctionReason, setCorrectionReason] = useState("");
 
   if (!org) {
     return (
@@ -234,13 +240,19 @@ function PersonDetail() {
               onClick={() => {
                 const currentRoleId = person.roleId ?? null;
                 setOriginalRoleId(currentRoleId);
+                setOriginalDepartment(person.department ?? "");
+                setOriginalJoiningDate(person.joiningDate ?? "");
+                setOriginalLastWorkingDay(person.lastWorkingDay ?? "");
                 setRoleId(currentRoleId ?? "unassigned");
                 setDepartment(person.department ?? "");
                 setJoiningDate(person.joiningDate ?? "");
+                setLastWorkingDay(person.lastWorkingDay ?? "");
+                setCorrectionReason("");
                 setProfileOpen(true);
               }}
             >
-              <Pencil className="h-4 w-4 mr-1.5" /> Edit employment
+              <Pencil className="h-4 w-4 mr-1.5" />
+              {person.employmentStatus === "ex_employee" ? "Request correction" : "Edit employment"}
             </Button>
             {person.employmentStatus === "active" ? (
               <Button
@@ -640,9 +652,15 @@ function PersonDetail() {
       <Dialog open={profileOpen} onOpenChange={setProfileOpen}>
         <DialogContent className="rounded-2xl sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Edit employment profile</DialogTitle>
+            <DialogTitle>
+              {person.employmentStatus === "ex_employee"
+                ? "Request historical correction"
+                : "Edit employment profile"}
+            </DialogTitle>
             <DialogDescription>
-              Assign a canonical organization job role and employment metadata.
+              {person.employmentStatus === "ex_employee"
+                ? "Former-employee history is locked. Submit an audited correction for Owner/Admin review."
+                : "Assign a canonical organization job role and employment metadata."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -669,6 +687,30 @@ function PersonDetail() {
                 </SelectContent>
               </Select>
             </div>
+            {person.employmentStatus === "ex_employee" ? (
+              <>
+                <div>
+                  <Label htmlFor="employment-last-working-date">Last working day</Label>
+                  <Input
+                    id="employment-last-working-date"
+                    type="date"
+                    value={lastWorkingDay}
+                    onChange={(event) => setLastWorkingDay(event.target.value)}
+                    className="mt-1.5 rounded-xl"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="employment-correction-reason">Reason for correction</Label>
+                  <Textarea
+                    id="employment-correction-reason"
+                    value={correctionReason}
+                    onChange={(event) => setCorrectionReason(event.target.value)}
+                    className="mt-1.5"
+                    placeholder="Explain why this historical record needs correction"
+                  />
+                </div>
+              </>
+            ) : null}
             <div>
               <Label htmlFor="employment-department">Department</Label>
               <Input
@@ -696,6 +738,14 @@ function PersonDetail() {
                 )}
               </p>
             ) : null}
+            {correctionMutation.error ? (
+              <p className="text-sm text-destructive" role="alert">
+                {getOrganizationPeopleErrorMessage(
+                  correctionMutation.error,
+                  "We couldn't submit the correction request.",
+                )}
+              </p>
+            ) : null}
           </div>
           <DialogFooter>
             <Button variant="outline" className="rounded-xl" onClick={() => setProfileOpen(false)}>
@@ -703,27 +753,64 @@ function PersonDetail() {
             </Button>
             <Button
               className="btn-premium rounded-xl"
-              disabled={profileMutation.isPending}
+              disabled={
+                profileMutation.isPending ||
+                correctionMutation.isPending ||
+                (person.employmentStatus === "ex_employee" && correctionReason.trim().length < 3)
+              }
               onClick={async () => {
                 try {
                   const selectedRoleId = roleId === "unassigned" ? null : roleId;
-                  await profileMutation.mutateAsync({
-                    orgPublicId: org.publicId,
-                    personPublicId: person.publicId,
-                    payload: {
+                  if (person.employmentStatus === "ex_employee") {
+                    const proposedChanges = {
                       ...(selectedRoleId !== originalRoleId ? { role_id: selectedRoleId } : {}),
-                      department: department.trim() || null,
-                      joining_date: joiningDate || null,
-                    },
-                  });
+                      ...(department !== originalDepartment
+                        ? { department: department.trim() || null }
+                        : {}),
+                      ...(joiningDate !== originalJoiningDate
+                        ? { joining_date: joiningDate || null }
+                        : {}),
+                      ...(lastWorkingDay !== originalLastWorkingDay
+                        ? { last_working_day: lastWorkingDay || null }
+                        : {}),
+                    };
+                    if (Object.keys(proposedChanges).length === 0) {
+                      toast.error("Change at least one historical employment field.");
+                      return;
+                    }
+                    await correctionMutation.mutateAsync({
+                      orgPublicId: org.publicId,
+                      personPublicId: person.publicId,
+                      payload: {
+                        proposed_changes: proposedChanges,
+                        reason: correctionReason.trim(),
+                      },
+                    });
+                  } else {
+                    await profileMutation.mutateAsync({
+                      orgPublicId: org.publicId,
+                      personPublicId: person.publicId,
+                      payload: {
+                        ...(selectedRoleId !== originalRoleId ? { role_id: selectedRoleId } : {}),
+                        department: department.trim() || null,
+                        joining_date: joiningDate || null,
+                      },
+                    });
+                  }
                   setProfileOpen(false);
-                  toast.success("Employment profile updated");
+                  toast.success(
+                    person.employmentStatus === "ex_employee"
+                      ? "Correction request submitted for audit review"
+                      : "Employment profile updated",
+                  );
                 } catch {
                   // The mutation error is rendered in the dialog.
                 }
               }}
             >
-              Save profile
+              {person.employmentStatus === "ex_employee"
+                ? "Submit correction request"
+                : "Save profile"}
             </Button>
           </DialogFooter>
         </DialogContent>

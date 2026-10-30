@@ -27,6 +27,15 @@ export interface OrganizationJobRole {
   public_id: string;
   name: string;
   description: string | null;
+  department: string | null;
+  location: string | null;
+  work_mode: "onsite" | "hybrid" | "remote" | null;
+  status: "draft" | "pending_approval" | "active" | "rejected" | "archived";
+  created_by_user_id: string | null;
+  approved_by_user_id: string | null;
+  approved_at: string | null;
+  rejected_at: string | null;
+  archived_at: string | null;
   is_active: boolean;
   assigned_people_count: number;
   created_at: string;
@@ -36,12 +45,45 @@ export interface OrganizationJobRole {
 export interface OrganizationJobRolePayload {
   name: string;
   description?: string | null;
+  department?: string | null;
+  location?: string | null;
+  work_mode?: "onsite" | "hybrid" | "remote" | null;
+  mode?: "draft" | "submit";
 }
 
 export interface OrganizationJobRoleUpdatePayload {
   name?: string;
   description?: string | null;
+  department?: string | null;
+  location?: string | null;
+  work_mode?: "onsite" | "hybrid" | "remote" | null;
   is_active?: boolean;
+}
+
+export interface FormerEmployeeCorrectionPayload {
+  proposed_changes: {
+    role_id?: string | null;
+    department?: string | null;
+    joining_date?: string | null;
+    last_working_day?: string | null;
+  };
+  reason: string;
+}
+
+export interface FormerEmployeeCorrectionResponse {
+  public_id: string;
+  person_public_id: string;
+  proposed_changes: FormerEmployeeCorrectionPayload["proposed_changes"];
+  before_snapshot: Record<string, unknown>;
+  after_snapshot: Record<string, unknown> | null;
+  reason: string;
+  status: "pending" | "approved" | "rejected";
+  requested_by_user_id: string;
+  decided_by_user_id: string | null;
+  decided_at: string | null;
+  decision_reason: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface OrganizationLogo {
@@ -217,6 +259,8 @@ export interface BackendVerificationReport {
 
 export interface TeamInvitationLookup {
   organization_name: string;
+  invitee_name: string | null;
+  personal_message: string | null;
   invited_role: "member" | "reviewer" | "admin";
   status: string;
   expires_at: string;
@@ -227,6 +271,7 @@ export interface TeamInvitationAcceptResponse {
   membership_public_id: string;
   role: "member" | "reviewer" | "admin";
   accepted_at: string;
+  requires_organization_setup: boolean;
 }
 
 export function updateEmployeeLifecycle(
@@ -283,6 +328,35 @@ export function deactivateOrganizationJobRole(orgPublicId: string, rolePublicId:
   return apiRequest<OrganizationJobRole>(
     `/api/v1/organizations/${orgPublicId}/job-roles/${rolePublicId}`,
     { method: "DELETE" },
+  );
+}
+
+export function approveOrganizationJobRole(orgPublicId: string, rolePublicId: string) {
+  return apiRequest<OrganizationJobRole>(
+    `/api/v1/organizations/${orgPublicId}/job-roles/${rolePublicId}/approve`,
+    { method: "POST" },
+  );
+}
+
+export function rejectOrganizationJobRole(
+  orgPublicId: string,
+  rolePublicId: string,
+  reason?: string,
+) {
+  return apiRequest<OrganizationJobRole>(
+    `/api/v1/organizations/${orgPublicId}/job-roles/${rolePublicId}/reject`,
+    { method: "POST", body: { reason: reason?.trim() || null } },
+  );
+}
+
+export function createFormerEmployeeCorrection(
+  orgPublicId: string,
+  personPublicId: string,
+  payload: FormerEmployeeCorrectionPayload,
+) {
+  return apiRequest<FormerEmployeeCorrectionResponse>(
+    `/api/v1/organizations/${orgPublicId}/people/${personPublicId}/corrections`,
+    { method: "POST", body: payload },
   );
 }
 
