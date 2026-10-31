@@ -4,6 +4,7 @@ import { z } from "zod";
 import { useMemo } from "react";
 import { EmptyState, PageHeader, SectionCard, TableSkeleton } from "@/components/app/primitives";
 import { OrganizationRolesCard } from "@/components/app/OrganizationRolesCard";
+import { FormerEmployeeCorrectionsCard } from "@/components/app/FormerEmployeeCorrectionsCard";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -268,6 +269,8 @@ function PeoplePage() {
       ) : null}
 
       <OrganizationRolesCard orgPublicId={org.publicId} canManage={canManageRoster} />
+
+      {canManageRoster ? <FormerEmployeeCorrectionsCard orgPublicId={org.publicId} /> : null}
 
       <div className="grid gap-3 mb-4">
         <div className="relative">

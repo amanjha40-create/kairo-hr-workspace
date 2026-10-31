@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { format, parseISO } from "date-fns";
 import { BriefcaseBusiness, Check, Loader2, Pencil, Plus, PowerOff, X } from "lucide-react";
 import { toast } from "sonner";
 import { EmptyState, SectionCard, TableSkeleton } from "@/components/app/primitives";
@@ -174,6 +175,24 @@ export function OrganizationRolesCard({
                     {formatRoleStatus(role.status)}
                   </Badge>
                 </div>
+                {roleMetadata(role) ? (
+                  <div className="mt-3 text-xs text-muted-foreground">{roleMetadata(role)}</div>
+                ) : null}
+                {role.status === "pending_approval" ? (
+                  <div className="mt-2 rounded-lg bg-warning/[0.08] px-2.5 py-2 text-xs">
+                    <div>
+                      Proposed by{" "}
+                      <span className="font-medium">{safeActorLabel(role.created_by)}</span>
+                    </div>
+                    <div className="mt-0.5 text-muted-foreground">
+                      Created {formatRoleDate(role.created_at)}
+                    </div>
+                  </div>
+                ) : role.approved_by ? (
+                  <div className="mt-2 text-xs text-muted-foreground">
+                    Approved by {safeActorLabel(role.approved_by)}
+                  </div>
+                ) : null}
                 {canManage ? (
                   <div className="mt-3 flex gap-1 border-t border-border/60 pt-3">
                     {role.status === "pending_approval" ? (
@@ -330,4 +349,28 @@ function formatRoleStatus(status: OrganizationJobRole["status"]) {
     .split("_")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+function safeActorLabel(actor: OrganizationJobRole["created_by"]) {
+  return actor?.display_name?.trim() || actor?.email || "Team member";
+}
+
+function roleMetadata(role: OrganizationJobRole) {
+  return [role.department, role.location, role.work_mode ? formatWorkMode(role.work_mode) : null]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function formatWorkMode(workMode: NonNullable<OrganizationJobRole["work_mode"]>) {
+  return workMode === "onsite"
+    ? "On-site"
+    : `${workMode.charAt(0).toUpperCase()}${workMode.slice(1)}`;
+}
+
+function formatRoleDate(value: string) {
+  try {
+    return format(parseISO(value), "MMM d, yyyy · h:mm a");
+  } catch {
+    return "time unavailable";
+  }
 }

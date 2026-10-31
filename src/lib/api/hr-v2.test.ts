@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   acceptTeamInvitationByToken,
+  approveFormerEmployeeCorrection,
   approveOrganizationJobRole,
   createFormerEmployeeCorrection,
   createOrganizationJobRole,
@@ -10,8 +11,10 @@ import {
   getStructuredVerificationReport,
   getTeamInvitationByToken,
   listOrganizationJobRoles,
+  listFormerEmployeeCorrections,
   removeOrganizationLogo,
   rejectOrganizationJobRole,
+  rejectFormerEmployeeCorrection,
   updateEmployeeLifecycle,
   updateEmploymentProfile,
   updateOrganizationJobRole,
@@ -124,6 +127,72 @@ describe("HR V2 certified API contracts", () => {
     ]);
     expect(JSON.parse(String(fetchSpy.mock.calls[1]?.[1]?.body))).toEqual({
       reason: "Duplicate proposal",
+    });
+  });
+
+  it("lists and decides former-employee corrections through API77", async () => {
+    fetchSpy
+      .mockResolvedValueOnce(
+        jsonResponse({
+          items: [],
+          total: 0,
+          page: 2,
+          page_size: 10,
+          total_pages: 0,
+          offset: 10,
+          limit: 10,
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          items: [],
+          total: 0,
+          page: 3,
+          page_size: 10,
+          total_pages: 0,
+          offset: 20,
+          limit: 10,
+        }),
+      )
+      .mockResolvedValueOnce(jsonResponse({ public_id: "correction-1", status: "approved" }))
+      .mockResolvedValueOnce(jsonResponse({ public_id: "correction-2", status: "rejected" }));
+
+    await listFormerEmployeeCorrections("org-1", {
+      status: "approved",
+      page: 2,
+      page_size: 10,
+    });
+    await listFormerEmployeeCorrections("org-1", {
+      status: "pending",
+      offset: 20,
+      limit: 10,
+    });
+    await approveFormerEmployeeCorrection("org-1", "correction-1", "Confirmed by HR");
+    await rejectFormerEmployeeCorrection("org-1", "correction-2");
+
+    expect(fetchSpy.mock.calls.map((call) => [call[0], call[1]?.method ?? "GET"])).toEqual([
+      [
+        "http://localhost:8000/api/v1/organizations/org-1/people/corrections?status=approved&page=2&page_size=10",
+        "GET",
+      ],
+      [
+        "http://localhost:8000/api/v1/organizations/org-1/people/corrections?status=pending&offset=20&limit=10",
+        "GET",
+      ],
+      [
+        "http://localhost:8000/api/v1/organizations/org-1/people/corrections/correction-1/approve",
+        "POST",
+      ],
+      [
+        "http://localhost:8000/api/v1/organizations/org-1/people/corrections/correction-2/reject",
+        "POST",
+      ],
+    ]);
+    expect(JSON.parse(String(fetchSpy.mock.calls[2]?.[1]?.body))).toEqual({
+      decision_reason: "Confirmed by HR",
+    });
+    expect(JSON.parse(String(fetchSpy.mock.calls[3]?.[1]?.body))).toEqual({
+      decision_reason: null,
     });
   });
 

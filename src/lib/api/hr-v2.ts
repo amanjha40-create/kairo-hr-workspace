@@ -23,6 +23,11 @@ export interface EmploymentProfileResponse {
   joining_date: string | null;
 }
 
+export interface HRUserSummary {
+  display_name: string;
+  email: string;
+}
+
 export interface OrganizationJobRole {
   public_id: string;
   name: string;
@@ -33,6 +38,8 @@ export interface OrganizationJobRole {
   status: "draft" | "pending_approval" | "active" | "rejected" | "archived";
   created_by_user_id: string | null;
   approved_by_user_id: string | null;
+  created_by: HRUserSummary | null;
+  approved_by: HRUserSummary | null;
   approved_at: string | null;
   rejected_at: string | null;
   archived_at: string | null;
@@ -84,6 +91,44 @@ export interface FormerEmployeeCorrectionResponse {
   decision_reason: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export type FormerEmployeeCorrectionStatus = "pending" | "approved" | "rejected";
+
+export interface FormerEmployeeCorrectionListItem {
+  public_id: string;
+  person: {
+    public_id: string;
+    display_name: string;
+  };
+  current_values: Record<string, unknown>;
+  proposed_values: Record<string, unknown>;
+  reason: string;
+  requester: HRUserSummary;
+  submitted_at: string;
+  status: FormerEmployeeCorrectionStatus;
+  reviewer: HRUserSummary | null;
+  decided_at: string | null;
+  decision_reason: string | null;
+  updated_at: string;
+}
+
+export interface FormerEmployeeCorrectionPage {
+  items: FormerEmployeeCorrectionListItem[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  offset: number;
+  limit: number;
+}
+
+export interface FormerEmployeeCorrectionListParams {
+  status: FormerEmployeeCorrectionStatus;
+  page?: number;
+  page_size?: number;
+  offset?: number;
+  limit?: number;
 }
 
 export interface OrganizationLogo {
@@ -357,6 +402,52 @@ export function createFormerEmployeeCorrection(
   return apiRequest<FormerEmployeeCorrectionResponse>(
     `/api/v1/organizations/${orgPublicId}/people/${personPublicId}/corrections`,
     { method: "POST", body: payload },
+  );
+}
+
+export function listFormerEmployeeCorrections(
+  orgPublicId: string,
+  params: FormerEmployeeCorrectionListParams,
+) {
+  const search = new URLSearchParams({ status: params.status });
+  if (params.page !== undefined || params.offset === undefined) {
+    search.set("page", String(params.page ?? 1));
+  }
+  if (params.page_size !== undefined || params.limit === undefined) {
+    search.set("page_size", String(params.page_size ?? 20));
+  }
+  if (params.offset !== undefined) search.set("offset", String(params.offset));
+  if (params.limit !== undefined) search.set("limit", String(params.limit));
+  return apiRequest<FormerEmployeeCorrectionPage>(
+    `/api/v1/organizations/${orgPublicId}/people/corrections?${search.toString()}`,
+  );
+}
+
+export function approveFormerEmployeeCorrection(
+  orgPublicId: string,
+  correctionPublicId: string,
+  decisionReason?: string,
+) {
+  return apiRequest<FormerEmployeeCorrectionResponse>(
+    `/api/v1/organizations/${orgPublicId}/people/corrections/${correctionPublicId}/approve`,
+    {
+      method: "POST",
+      body: { decision_reason: decisionReason?.trim() || null },
+    },
+  );
+}
+
+export function rejectFormerEmployeeCorrection(
+  orgPublicId: string,
+  correctionPublicId: string,
+  decisionReason?: string,
+) {
+  return apiRequest<FormerEmployeeCorrectionResponse>(
+    `/api/v1/organizations/${orgPublicId}/people/corrections/${correctionPublicId}/reject`,
+    {
+      method: "POST",
+      body: { decision_reason: decisionReason?.trim() || null },
+    },
   );
 }
 

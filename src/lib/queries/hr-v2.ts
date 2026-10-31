@@ -1,5 +1,6 @@
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  approveFormerEmployeeCorrection,
   approveOrganizationJobRole,
   createOrganizationJobRole,
   createFormerEmployeeCorrection,
@@ -7,7 +8,9 @@ import {
   getOrganizationLogo,
   getOrganizationVerificationPreferences,
   listOrganizationJobRoles,
+  listFormerEmployeeCorrections,
   rejectOrganizationJobRole,
+  rejectFormerEmployeeCorrection,
   removeOrganizationLogo,
   updateEmployeeLifecycle,
   updateEmploymentProfile,
@@ -16,6 +19,7 @@ import {
   uploadOrganizationLogo,
   type EmploymentProfilePayload,
   type FormerEmployeeCorrectionPayload,
+  type FormerEmployeeCorrectionListParams,
   type OrganizationJobRolePayload,
   type OrganizationJobRoleUpdatePayload,
   type VerificationPreferencesPayload,
@@ -27,6 +31,8 @@ export const hrV2QueryKeys = {
   roles: (orgPublicId: string) => [...hrV2QueryKeys.all, "roles", orgPublicId] as const,
   logo: (orgPublicId: string) => [...hrV2QueryKeys.all, "logo", orgPublicId] as const,
   preferences: (orgPublicId: string) => [...hrV2QueryKeys.all, "preferences", orgPublicId] as const,
+  corrections: (orgPublicId: string, params: FormerEmployeeCorrectionListParams) =>
+    [...hrV2QueryKeys.all, "corrections", orgPublicId, params] as const,
 };
 
 function requireOrganization(orgPublicId: string | undefined) {
@@ -164,7 +170,72 @@ export function useFormerEmployeeCorrectionMutation() {
       personPublicId: string;
       payload: FormerEmployeeCorrectionPayload;
     }) => createFormerEmployeeCorrection(orgPublicId, personPublicId, payload),
-    onSuccess: async () => invalidatePeople(queryClient),
+    onSuccess: async (_, variables) => {
+      await invalidatePeople(queryClient);
+      await queryClient.invalidateQueries({
+        queryKey: [...hrV2QueryKeys.all, "corrections", variables.orgPublicId],
+      });
+    },
+  });
+}
+
+export function useFormerEmployeeCorrectionsQuery(
+  orgPublicId: string | undefined,
+  params: FormerEmployeeCorrectionListParams,
+) {
+  return useQuery({
+    queryKey: hrV2QueryKeys.corrections(orgPublicId ?? "", params),
+    queryFn: () => listFormerEmployeeCorrections(requireOrganization(orgPublicId), params),
+    enabled: Boolean(orgPublicId),
+    retry: false,
+  });
+}
+
+export function useApproveFormerEmployeeCorrectionMutation(orgPublicId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      correctionPublicId,
+      decisionReason,
+    }: {
+      correctionPublicId: string;
+      decisionReason?: string;
+    }) =>
+      approveFormerEmployeeCorrection(
+        requireOrganization(orgPublicId),
+        correctionPublicId,
+        decisionReason,
+      ),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: [...hrV2QueryKeys.all, "corrections", orgPublicId ?? ""],
+      });
+      await invalidatePeople(queryClient);
+    },
+  });
+}
+
+export function useRejectFormerEmployeeCorrectionMutation(orgPublicId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      correctionPublicId,
+      decisionReason,
+    }: {
+      correctionPublicId: string;
+      decisionReason?: string;
+    }) =>
+      rejectFormerEmployeeCorrection(
+        requireOrganization(orgPublicId),
+        correctionPublicId,
+        decisionReason,
+      ),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: [...hrV2QueryKeys.all, "corrections", orgPublicId ?? ""],
+      });
+      await invalidatePeople(queryClient);
+    },
   });
 }
 

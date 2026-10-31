@@ -20,6 +20,8 @@ const activeRole: OrganizationJobRole = {
   status: "active",
   created_by_user_id: "user-1",
   approved_by_user_id: "user-1",
+  created_by: { display_name: "Alex Member", email: "alex@example.com" },
+  approved_by: { display_name: "Olivia Owner", email: "owner@example.com" },
   approved_at: "2026-10-18T00:00:00Z",
   rejected_at: null,
   archived_at: null,
@@ -166,12 +168,47 @@ describe("OrganizationRolesCard", () => {
   });
 
   it("lets an Owner or Admin approve and reject pending Hiring Roles", async () => {
-    rolesQuery.data = [{ ...activeRole, status: "pending_approval", is_active: false }];
+    rolesQuery.data = [
+      {
+        ...activeRole,
+        status: "pending_approval",
+        is_active: false,
+        approved_by: null,
+        approved_by_user_id: null,
+      },
+    ];
     render(<OrganizationRolesCard orgPublicId="org-1" canManage />);
 
+    expect(screen.getByText(/Proposed by/)).toHaveTextContent("Proposed by Alex Member");
+    expect(screen.getByText(/Created Oct 18, 2026/)).toBeInTheDocument();
     fireEvent.click(screen.getByText("Approve"));
     await waitFor(() => expect(approveSpy).toHaveBeenCalledWith("role-1"));
     fireEvent.click(screen.getByText("Reject"));
     await waitFor(() => expect(rejectSpy).toHaveBeenCalledWith({ rolePublicId: "role-1" }));
+  });
+
+  it("uses the safe creator email fallback and never renders legacy user IDs", () => {
+    rolesQuery.data = [
+      {
+        ...activeRole,
+        status: "pending_approval",
+        is_active: false,
+        created_by: { display_name: "", email: "member@example.com" },
+        created_by_user_id: "8d3bb173-3ccf-4ad7-930f-cafb24cd288c",
+        approved_by: null,
+        approved_by_user_id: null,
+      },
+    ];
+
+    render(<OrganizationRolesCard orgPublicId="org-1" canManage />);
+
+    expect(screen.getByText(/Proposed by/)).toHaveTextContent("member@example.com");
+    expect(screen.queryByText("8d3bb173-3ccf-4ad7-930f-cafb24cd288c")).not.toBeInTheDocument();
+  });
+
+  it("shows the safe approver summary for an active role", () => {
+    render(<OrganizationRolesCard orgPublicId="org-1" canManage />);
+
+    expect(screen.getByText("Approved by Olivia Owner")).toBeInTheDocument();
   });
 });

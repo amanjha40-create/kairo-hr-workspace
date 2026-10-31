@@ -154,6 +154,10 @@ vi.mock("@/components/app/OrganizationRolesCard", () => ({
   OrganizationRolesCard: () => <div>canonical-role-counts</div>,
 }));
 
+vi.mock("@/components/app/FormerEmployeeCorrectionsCard", () => ({
+  FormerEmployeeCorrectionsCard: () => <div>correction-review-queue</div>,
+}));
+
 vi.mock("@/components/app/workspace-pills", () => ({
   InvitationPill: ({ value }: { value: string }) => <span>{value}</span>,
   PassportPill: ({ value }: { value: string }) => <span>{value}</span>,
@@ -261,6 +265,16 @@ describe("People directory page", () => {
     accessState.membershipRole = "member";
     render(<PeoplePage />);
     expect(screen.queryByText("Import Employees")).not.toBeInTheDocument();
+    expect(screen.queryByText("correction-review-queue")).not.toBeInTheDocument();
+  });
+
+  it("shows the correction review queue to Owners and Admins", () => {
+    render(<PeoplePage />);
+    expect(screen.getByText("correction-review-queue")).toBeInTheDocument();
+
+    accessState.membershipRole = "admin";
+    render(<PeoplePage />);
+    expect(screen.getAllByText("correction-review-queue")).toHaveLength(2);
   });
 
   it("shows retry on backend error and refetches both queries", () => {
