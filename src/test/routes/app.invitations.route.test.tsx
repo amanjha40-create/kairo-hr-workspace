@@ -240,6 +240,33 @@ describe("Trust Invitations list page", () => {
     expect(screen.getByText("Delivered")).toBeInTheDocument();
   });
 
+  it("shows the complete accepted lifecycle set and matching totals", () => {
+    routeSearch = { status: "Accepted", purpose: "all", type: "all", page: 1 };
+    summaryQueryState.data = { active: 0, awaiting: 0, accepted: 2, expiring: 0, draft: 0 };
+    listQueryState.data = [
+      makeTrustInvitationRecord({
+        id: "ti_in_progress",
+        candidateName: "In Progress Candidate",
+        status: "In progress",
+        backendStatus: "accepted",
+      }),
+      makeTrustInvitationRecord({
+        id: "ti_completed",
+        candidateName: "Completed Candidate",
+        status: "Completed",
+        backendStatus: "accepted",
+        lifecycleState: "completed",
+      }),
+    ];
+
+    render(<InvitationsPage />);
+
+    expect(screen.getAllByText("In Progress Candidate")).toHaveLength(2);
+    expect(screen.getAllByText("Completed Candidate")).toHaveLength(2);
+    expect(screen.getByText("2 of 2")).toBeInTheDocument();
+    expect(screen.queryByText("No invitations match")).not.toBeInTheDocument();
+  });
+
   it("renders the invitation detail child route instead of the list on /app/invitations/{id}", () => {
     routePathname = "/app/invitations/ti_123";
     listQueryState.data = [makeTrustInvitationRecord()];

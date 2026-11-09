@@ -319,7 +319,9 @@ export function mapUiStatusToBackendFilter(status: string) {
 }
 
 export function matchesUiStatusFilter(invitation: TrustInvitationRecord, status: string) {
-  return status === "all" ? true : invitation.status === status;
+  if (status === "all") return true;
+  if (status === "Accepted") return invitation.backendStatus === "accepted";
+  return invitation.status === status;
 }
 
 export function matchesPurposeFilter(invitation: TrustInvitationRecord, purpose: string) {
