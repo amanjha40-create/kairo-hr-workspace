@@ -51,6 +51,10 @@ export function organizationJobRolesQueryOptions(orgPublicId: string) {
     queryFn: () => listOrganizationJobRoles(orgPublicId),
     enabled: Boolean(orgPublicId),
     retry: false,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: "always",
+    refetchInterval: 30_000,
   });
 }
 
