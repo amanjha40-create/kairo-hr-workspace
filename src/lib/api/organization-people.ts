@@ -92,6 +92,7 @@ export interface BackendOrganizationPersonListItem {
   role_id?: string | null;
   role?: string | null;
   department?: string | null;
+  division?: string | null;
   joining_date?: string | null;
   last_working_day?: string | null;
 }
@@ -210,6 +211,7 @@ export interface BackendOrganizationPersonDetailResponse {
     role_id?: string | null;
     role?: string | null;
     department?: string | null;
+    division?: string | null;
     joining_date?: string | null;
     last_working_day?: string | null;
   };

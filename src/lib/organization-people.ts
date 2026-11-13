@@ -75,6 +75,7 @@ export interface PeopleDirectoryItem {
   roleId: string | null;
   role: string | null;
   department: string | null;
+  division: string | null;
   joiningDate: string | null;
   lastWorkingDay: string | null;
 }
@@ -202,6 +203,7 @@ export interface PersonDetailRecord {
   roleId: string | null;
   role: string | null;
   department: string | null;
+  division: string | null;
   joiningDate: string | null;
   lastWorkingDay: string | null;
 }
@@ -431,6 +433,7 @@ export function mapOrganizationPeopleDirectory(
       roleId: item.role_id ?? null,
       role: item.role ?? null,
       department: item.department ?? null,
+      division: item.division ?? null,
       joiningDate: item.joining_date ?? null,
       lastWorkingDay: item.last_working_day ?? null,
     })),
@@ -493,6 +496,7 @@ export function mapOrganizationPersonDetail(
     roleId: response.organization_relationship.role_id ?? null,
     role: response.organization_relationship.role ?? null,
     department: response.organization_relationship.department ?? null,
+    division: response.organization_relationship.division ?? null,
     joiningDate: response.organization_relationship.joining_date ?? null,
     lastWorkingDay: response.organization_relationship.last_working_day ?? null,
   };

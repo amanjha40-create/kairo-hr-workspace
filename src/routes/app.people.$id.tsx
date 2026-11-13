@@ -135,10 +135,12 @@ function PersonDetail() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [originalRoleId, setOriginalRoleId] = useState<string | null>(null);
   const [originalDepartment, setOriginalDepartment] = useState("");
+  const [originalDivision, setOriginalDivision] = useState("");
   const [originalJoiningDate, setOriginalJoiningDate] = useState("");
   const [originalLastWorkingDay, setOriginalLastWorkingDay] = useState("");
   const [roleId, setRoleId] = useState("unassigned");
   const [department, setDepartment] = useState("");
+  const [division, setDivision] = useState("");
   const [joiningDate, setJoiningDate] = useState("");
   const [correctionReason, setCorrectionReason] = useState("");
 
@@ -241,10 +243,12 @@ function PersonDetail() {
                 const currentRoleId = person.roleId ?? null;
                 setOriginalRoleId(currentRoleId);
                 setOriginalDepartment(person.department ?? "");
+                setOriginalDivision(person.division ?? "");
                 setOriginalJoiningDate(person.joiningDate ?? "");
                 setOriginalLastWorkingDay(person.lastWorkingDay ?? "");
                 setRoleId(currentRoleId ?? "unassigned");
                 setDepartment(person.department ?? "");
+                setDivision(person.division ?? "");
                 setJoiningDate(person.joiningDate ?? "");
                 setLastWorkingDay(person.lastWorkingDay ?? "");
                 setCorrectionReason("");
@@ -335,6 +339,11 @@ function PersonDetail() {
                   icon={Building2}
                   label="Department"
                   value={person.department ?? roster?.department ?? "Not provided"}
+                />
+                <Field
+                  icon={Building2}
+                  label="Division"
+                  value={person.division ?? "Not provided"}
                 />
                 <Field
                   icon={CalendarDays}
@@ -721,6 +730,15 @@ function PersonDetail() {
               />
             </div>
             <div>
+              <Label htmlFor="employment-division">Division</Label>
+              <Input
+                id="employment-division"
+                value={division}
+                onChange={(event) => setDivision(event.target.value)}
+                className="mt-1.5 rounded-xl"
+              />
+            </div>
+            <div>
               <Label htmlFor="employment-joining-date">Joining date</Label>
               <Input
                 id="employment-joining-date"
@@ -767,6 +785,9 @@ function PersonDetail() {
                       ...(department !== originalDepartment
                         ? { department: department.trim() || null }
                         : {}),
+                      ...(division !== originalDivision
+                        ? { division: division.trim() || null }
+                        : {}),
                       ...(joiningDate !== originalJoiningDate
                         ? { joining_date: joiningDate || null }
                         : {}),
@@ -793,6 +814,7 @@ function PersonDetail() {
                       payload: {
                         ...(selectedRoleId !== originalRoleId ? { role_id: selectedRoleId } : {}),
                         department: department.trim() || null,
+                        division: division.trim() || null,
                         joining_date: joiningDate || null,
                       },
                     });

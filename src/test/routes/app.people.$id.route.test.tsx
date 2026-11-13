@@ -442,6 +442,7 @@ describe("Person detail page", () => {
         personPublicId: "person_123",
         payload: {
           department: "People Operations",
+          division: "Product Engineering",
           joining_date: "2025-01-15",
         },
       });
@@ -482,6 +483,7 @@ describe("Person detail page", () => {
         personPublicId: "person_123",
         payload: {
           department: "Operations",
+          division: "Product Engineering",
           joining_date: "2025-02-01",
         },
       });

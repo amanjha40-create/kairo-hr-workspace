@@ -12,6 +12,7 @@ export interface EmployeeLifecycleResponse {
 export interface EmploymentProfilePayload {
   role_id?: string | null;
   department?: string | null;
+  division?: string | null;
   joining_date?: string | null;
 }
 
@@ -20,6 +21,7 @@ export interface EmploymentProfileResponse {
   role_id: string | null;
   role: string | null;
   department: string | null;
+  division: string | null;
   joining_date: string | null;
 }
 
@@ -71,6 +73,7 @@ export interface FormerEmployeeCorrectionPayload {
   proposed_changes: {
     role_id?: string | null;
     department?: string | null;
+    division?: string | null;
     joining_date?: string | null;
     last_working_day?: string | null;
   };

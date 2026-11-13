@@ -77,6 +77,7 @@ describe("HR V2 certified API contracts", () => {
     await updateEmploymentProfile("org-1", "person-1", {
       role_id: "role-1",
       department: "Quality",
+      division: "Product Assurance",
       joining_date: "2026-10-01",
     });
 
@@ -86,6 +87,11 @@ describe("HR V2 certified API contracts", () => {
     expect(fetchSpy.mock.calls[1]?.[0]).toBe(
       "http://localhost:8000/api/v1/organizations/org-1/people/person-1/employment-profile",
     );
+    expect(JSON.parse(String(fetchSpy.mock.calls[1]?.[1]?.body))).toMatchObject({
+      role_id: "role-1",
+      department: "Quality",
+      division: "Product Assurance",
+    });
   });
 
   it("lists, edits, and safely deactivates organization roles", async () => {
